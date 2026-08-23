@@ -329,7 +329,9 @@ onMounted(async () => {
                     <n-button size="tiny" quaternary type="error" @click="confirmDeleteAssign(a)">刪除</n-button>
                   </div>
                 </div>
-                <div v-if="!t.assignments.length" class="muted">尚未設定對象與週期</div>
+                <div v-if="!t.assignments.length" class="muted assign-empty">
+                  尚未指派對象 — 點下方「指派對象與週期」，選擇果園／區域／單棵果樹
+                </div>
               </div>
             </div>
             <div class="row-actions top">
@@ -340,7 +342,7 @@ onMounted(async () => {
           </div>
 
           <div style="margin-top: 10px; text-align: right">
-            <n-button size="small" secondary type="primary" @click="openAssignCreate(t)">＋ 新增排程</n-button>
+            <n-button size="small" type="primary" @click="openAssignCreate(t)">＋ 指派對象與週期</n-button>
           </div>
         </n-card>
       </div>
@@ -400,6 +402,9 @@ onMounted(async () => {
             placeholder="選擇單一棵果樹"
             filterable
           />
+        </n-form-item>
+        <n-form-item v-if="assignForm.target_type === 'AREA'" :show-feedback="false">
+          <div class="muted">指定區域＝執行時解析「當下」區域內所有有效果樹，之後新增的樹也會自動納入</div>
         </n-form-item>
 
         <n-form-item label="開始日期" required>

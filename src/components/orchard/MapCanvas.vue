@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 
 const props = withDefaults(
   defineProps<{
@@ -35,6 +35,8 @@ let pinchStart: {
   oy: number
 } | null = null
 
+let windowListenersAttached = false
+
 function vpSize() {
   return { w: vp.value?.clientWidth ?? 0, h: vp.value?.clientHeight ?? 0 }
 }
@@ -56,8 +58,23 @@ function zoomAt(factor: number, cx: number, cy: number) {
   scale.value = ns
 }
 
+/** 不使用 setPointerCapture：capture 會把 click 重定向到畫布，導致 Marker 點不到 */
+function attachWindow() {
+  if (windowListenersAttached) return
+  window.addEventListener('pointermove', onWindowMove)
+  window.addEventListener('pointerup', onWindowUp)
+  window.addEventListener('pointercancel', onWindowUp)
+  windowListenersAttached = true
+}
+
+function detachWindow() {
+  window.removeEventListener('pointermove', onWindowMove)
+  window.removeEventListener('pointerup', onWindowUp)
+  window.removeEventListener('pointercancel', onWindowUp)
+  windowListenersAttached = false
+}
+
 function onPointerDown(e: PointerEvent) {
-  vp.value?.setPointerCapture(e.pointerId)
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
   if (pointers.size === 2) {
     const [a, b] = [...pointers.values()]
@@ -73,9 +90,10 @@ function onPointerDown(e: PointerEvent) {
   } else if (pointers.size === 1) {
     panStart = { x: e.clientX, y: e.clientY, ox: offsetX.value, oy: offsetY.value, moved: false }
   }
+  attachWindow()
 }
 
-function onPointerMove(e: PointerEvent) {
+function onWindowMove(e: PointerEvent) {
   if (!pointers.has(e.pointerId)) return
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
   if (pointers.size >= 2 && pinchStart) {
@@ -95,12 +113,15 @@ function onPointerMove(e: PointerEvent) {
   }
 }
 
-function onPointerUp(e: PointerEvent) {
+function onWindowUp(e: PointerEvent) {
   const sizeBefore = pointers.size
   const wasSingleTap = panStart !== null && !panStart.moved && sizeBefore === 1 && pinchStart === null
   pointers.delete(e.pointerId)
   if (sizeBefore - 1 < 2) pinchStart = null
-  panStart = null
+  if (sizeBefore - 1 <= 0) {
+    panStart = null
+    detachWindow()
+  }
   if (wasSingleTap && sizeBefore - 1 === 0) emit('tap')
 }
 
@@ -123,6 +144,10 @@ onMounted(() => {
   fit()
 })
 
+onBeforeUnmount(() => {
+  detachWindow()
+})
+
 defineExpose({ fit, zoomIn: () => {
   const { w, h } = vpSize()
   zoomAt(1.25, w / 2, h / 2)
@@ -138,15 +163,7 @@ defineExpose({ fit, zoomIn: () => {
 </script>
 
 <template>
-  <div
-    ref="vp"
-    class="map-canvas"
-    @pointerdown="onPointerDown"
-    @pointermove="onPointerMove"
-    @pointerup="onPointerUp"
-    @pointercancel="onPointerUp"
-    @wheel.prevent="onWheel"
-  >
+  <div ref="vp" class="map-canvas" @pointerdown="onPointerDown" @wheel.prevent="onWheel">
     <div
       class="map-layer"
       :style="{

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import {
   NButton,
   NDrawer,
@@ -12,6 +12,7 @@ import {
   useDialog,
   useMessage,
 } from 'naive-ui'
+import type { DropdownOption } from 'naive-ui'
 import { useTaskStore } from '../../stores/task'
 import { ITEM_STATUS_META } from '../../constants/status'
 import type { ItemStatus } from '../../types/database'
@@ -27,38 +28,97 @@ const doneCount = computed(
   () => store.activeItems.filter((i) => i.status === 'COMPLETED' || i.status === 'SKIPPED').length,
 )
 const pendingCount = computed(() => total.value - doneCount.value)
-const allResolved = computed(() => pendingCount.value === 0)
+
+/** 清單篩選 */
+type ListFilter = 'ALL' | 'OPEN' | 'DONE'
+const filter = ref<ListFilter>('ALL')
+
+const openItems = computed(() =>
+  store.activeItems.filter((i) => i.status === 'PENDING' || i.status === 'FAILED'),
+)
+const visibleItems = computed(() => {
+  if (filter.value === 'OPEN') return openItems.value
+  if (filter.value === 'DONE')
+    return store.activeItems.filter((i) => i.status === 'COMPLETED' || i.status === 'SKIPPED')
+  return store.activeItems
+})
 
 function treeLabel(tree: { code: string; name: string | null } | null): string {
   if (!tree) return '?'
   return tree.name ? `${tree.name}（${tree.code}）` : tree.code
 }
 
-async function tapItem(id: string, status: ItemStatus) {
+async function setStatus(id: string, status: ItemStatus) {
   try {
-    if (status === 'PENDING') await store.toggleItem(id, 'COMPLETED')
-    else await store.toggleItem(id, 'PENDING')
+    await store.toggleItem(id, status)
   } catch (e) {
     message.error(e instanceof Error ? e.message : '更新失敗')
   }
 }
 
-function itemOptions(): { label: string; key: ItemStatus }[] {
+async function tapItem(id: string, status: ItemStatus) {
+  await setStatus(id, status === 'PENDING' ? 'COMPLETED' : 'PENDING')
+}
+
+// ------------------------------------------------------------
+// 範圍操作：依清單順序一次處理連續區段
+// ------------------------------------------------------------
+function indexOfItem(id: string): number {
+  return store.activeItems.findIndex((i) => i.id === id)
+}
+
+/** 完成到此項：此項（含）之前所有未完成 → 完成 */
+async function completeUntil(itemId: string) {
+  const idx = indexOfItem(itemId)
+  if (idx < 0) return
+  const targets = store.activeItems.slice(0, idx + 1).filter((i) => i.status !== 'COMPLETED')
+  if (!targets.length) {
+    message.info('此項之前皆已完成')
+    return
+  }
+  try {
+    for (const t of targets) await store.toggleItem(t.id, 'COMPLETED')
+    message.success(`已完成 ${targets.length} 項`)
+  } catch (e) {
+    message.error(e instanceof Error ? e.message : '更新失敗')
+  }
+}
+
+/** 此項之後全部重設待執行 */
+async function resetAfter(itemId: string) {
+  const idx = indexOfItem(itemId)
+  if (idx < 0) return
+  const targets = store.activeItems.slice(idx + 1).filter((i) => i.status !== 'PENDING')
+  if (!targets.length) {
+    message.info('此項之後皆為待執行')
+    return
+  }
+  try {
+    for (const t of targets) await store.toggleItem(t.id, 'PENDING')
+    message.success(`已重設 ${targets.length} 項`)
+  } catch (e) {
+    message.error(e instanceof Error ? e.message : '更新失敗')
+  }
+}
+
+function itemOptions(): DropdownOption[] {
   return [
     { label: '標記完成', key: 'COMPLETED' },
     { label: '略過', key: 'SKIPPED' },
     { label: '執行失敗', key: 'FAILED' },
     { label: '重設為待執行', key: 'PENDING' },
+    { type: 'divider', key: 'd1' },
+    { label: '✓ 完成到此項（含之前的未完成）', key: 'UNTIL_DONE' },
+    { label: '↺ 此項之後全部重設待執行', key: 'AFTER_RESET' },
   ]
 }
 
-async function onMenu(key: ItemStatus, itemId: string, current: ItemStatus) {
-  if (key === current) return
-  try {
-    await store.toggleItem(itemId, key)
-  } catch (e) {
-    message.error(e instanceof Error ? e.message : '更新失敗')
-  }
+async function onMenu(key: string, itemId: string, current: ItemStatus) {
+  if (key === 'UNTIL_DONE') return completeUntil(itemId)
+  if (key === 'AFTER_RESET') return resetAfter(itemId)
+  const status = key as ItemStatus
+  if (status === current) return
+  await setStatus(itemId, status)
 }
 
 function confirmCompleteAll() {
@@ -72,7 +132,7 @@ function confirmCompleteAll() {
 }
 
 function confirmFinish() {
-  const partial = !allResolved.value && doneCount.value > 0
+  const partial = pendingCount.value > 0 && doneCount.value > 0
   const none = doneCount.value === 0
   dialog.warning({
     title: '完成本輪任務',
@@ -107,6 +167,7 @@ function confirmCancel() {
       <template #header>
         <div class="sheet-header">
           <div class="title">執行任務</div>
+          <div class="muted">點項目切換完成；「⋯」可略過／失敗／範圍批次</div>
         </div>
       </template>
 
@@ -136,36 +197,46 @@ function confirmCancel() {
 
           <n-empty v-if="!total" description="沒有可執行項目" style="margin-top: 40px" />
 
-          <div v-else class="item-list">
-            <div
-              v-for="item in store.activeItems"
-              :key="item.id"
-              class="exec-item"
-              :class="{ done: item.status === 'COMPLETED', skipped: item.status === 'SKIPPED', failed: item.status === 'FAILED' }"
-              @click="tapItem(item.id, item.status)"
-            >
-              <div class="check">
-                <span v-if="item.status === 'COMPLETED'" class="mark ok">✓</span>
-                <span v-else-if="item.status === 'SKIPPED'" class="mark skip">↷</span>
-                <span v-else-if="item.status === 'FAILED'" class="mark fail">✕</span>
-                <span v-else class="mark pending">○</span>
-              </div>
-              <div class="info">
-                <div class="name">{{ treeLabel(item.tree) }}</div>
-                <div v-if="item.note" class="note muted">{{ item.note }}</div>
-              </div>
-              <n-tag size="tiny" :type="ITEM_STATUS_META[item.status].type" round>
-                {{ ITEM_STATUS_META[item.status].label }}
-              </n-tag>
-              <n-dropdown
-                trigger="click"
-                :options="itemOptions()"
-                @select="(key: ItemStatus) => onMenu(key, item.id, item.status)"
-              >
-                <button class="more-btn" @click.stop>⋯</button>
-              </n-dropdown>
+          <template v-else>
+            <div class="list-filter">
+              <button :class="{ on: filter === 'ALL' }" @click="filter = 'ALL'">全部 {{ total }}</button>
+              <button :class="{ on: filter === 'OPEN' }" @click="filter = 'OPEN'">未處理 {{ openItems.length }}</button>
+              <button :class="{ on: filter === 'DONE' }" @click="filter = 'DONE'">已處理 {{ doneCount }}</button>
             </div>
-          </div>
+
+            <div class="item-list">
+              <div
+                v-for="item in visibleItems"
+                :key="item.id"
+                class="exec-item"
+                :class="{ done: item.status === 'COMPLETED', skipped: item.status === 'SKIPPED', failed: item.status === 'FAILED' }"
+                @click="tapItem(item.id, item.status)"
+              >
+                <div class="check">
+                  <span v-if="item.status === 'COMPLETED'" class="mark ok">✓</span>
+                  <span v-else-if="item.status === 'SKIPPED'" class="mark skip">↷</span>
+                  <span v-else-if="item.status === 'FAILED'" class="mark fail">✕</span>
+                  <span v-else class="mark pending">○</span>
+                </div>
+                <div class="info">
+                  <div class="name">{{ treeLabel(item.tree) }}</div>
+                  <div v-if="item.note" class="note muted">{{ item.note }}</div>
+                </div>
+                <n-tag size="tiny" :type="ITEM_STATUS_META[item.status].type" round>
+                  {{ ITEM_STATUS_META[item.status].label }}
+                </n-tag>
+                <n-dropdown
+                  trigger="click"
+                  :options="itemOptions()"
+                  @select="(key: string) => onMenu(key, item.id, item.status)"
+                >
+                  <button class="more-btn" @click.stop>⋯</button>
+                </n-dropdown>
+              </div>
+
+              <div v-if="!visibleItems.length" class="muted empty-filter">此分類沒有項目</div>
+            </div>
+          </template>
 
           <div class="bottom-space" />
         </div>
@@ -208,11 +279,40 @@ function confirmCancel() {
   gap: 6px;
 }
 
-.item-list {
+.list-filter {
+  display: flex;
+  gap: 6px;
   margin-top: 10px;
+}
+
+.list-filter button {
+  flex: 1;
+  padding: 7px 0;
+  border: 1px solid #e0e3e8;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 13px;
+  color: #555b61;
+  cursor: pointer;
+}
+
+.list-filter button.on {
+  border-color: var(--primary);
+  color: var(--primary);
+  font-weight: 700;
+  background: rgba(24, 160, 88, 0.07);
+}
+
+.item-list {
+  margin-top: 8px;
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.empty-filter {
+  text-align: center;
+  padding: 20px 0;
 }
 
 .exec-item {

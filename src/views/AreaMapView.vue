@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   NButton,
@@ -20,11 +20,15 @@ import MapCanvas from '../components/orchard/MapCanvas.vue'
 import MapControls from '../components/orchard/MapControls.vue'
 import MapToolbar from '../components/orchard/MapToolbar.vue'
 import TreeMarker from '../components/orchard/TreeMarker.vue'
+import QuickAssignModal from '../components/task/QuickAssignModal.vue'
+import DueStatusTag from '../components/task/DueStatusTag.vue'
 import { areaService, orchardService } from '../services/orchardService'
-import type { Area, Orchard, TreeStatus } from '../types/database'
-import { TREE_STATUS_META } from '../constants/status'
+import { getPendingTasks } from '../services/taskService'
+import type { Area, Orchard, PendingTaskInfo, TreeStatus } from '../types/database'
+import { TARGET_TYPE_LABEL, TREE_STATUS_META } from '../constants/status'
 import { formatDate } from '../utils/date'
 import { useTreeStore, useMasterStore } from '../stores/tree'
+import { useTaskStore } from '../stores/task'
 
 const route = useRoute()
 const router = useRouter()
@@ -34,6 +38,7 @@ const orchardId = route.params.orchardId as string
 const areaId = route.params.areaId as string
 const treeStore = useTreeStore()
 const masterStore = useMasterStore()
+const taskStore = useTaskStore()
 
 const canvasRef = ref<InstanceType<typeof MapCanvas> | null>(null)
 const scale = ref(1)
@@ -48,6 +53,49 @@ const selectedId = ref<string | null>(null)
 const showInfo = ref(false)
 
 const selected = computed(() => treeStore.trees.find((t) => t.id === selectedId.value) ?? null)
+
+// 快速指派任務給果樹（§27）
+const quickAssignShow = ref(false)
+
+function openQuickAssign() {
+  if (!selected.value) return
+  quickAssignShow.value = true
+}
+
+// 此樹相關任務（單樹 + 所屬區域 + 所屬果園）
+const relatedTasks = ref<PendingTaskInfo[]>([])
+const executingId = ref<string | null>(null)
+
+async function loadRelatedTasks() {
+  if (!selected.value) return
+  try {
+    const all = await getPendingTasks()
+    const tid = selected.value.id
+    relatedTasks.value = all.filter((p) => {
+      if (p.assignment.target_type === 'TREE') return p.assignment.target_id === tid
+      if (p.assignment.target_type === 'AREA') return p.areaId === areaId
+      return p.orchardId === orchardId
+    })
+  } catch {
+    relatedTasks.value = []
+  }
+}
+
+watch(showInfo, (v) => {
+  if (v) void loadRelatedTasks()
+})
+
+async function execTask(p: PendingTaskInfo) {
+  executingId.value = p.assignment.id
+  try {
+    await taskStore.beginExecution(p.assignment.id)
+    showInfo.value = false
+  } catch (e) {
+    message.error(e instanceof Error ? e.message : '無法開始執行')
+  } finally {
+    executingId.value = null
+  }
+}
 
 function select(id: string | null) {
   selectedId.value = id
@@ -286,7 +334,7 @@ function goBack() {
     <map-controls :edit-mode="editMode" @zoom-in="canvasRef?.zoomIn()" @zoom-out="canvasRef?.zoomOut()" @fit="canvasRef?.fit()" />
 
     <!-- 果樹資訊（§56） -->
-    <n-drawer v-model:show="showInfo" placement="bottom" :height="300">
+    <n-drawer v-model:show="showInfo" placement="bottom" :height="360">
       <n-drawer-content v-if="selected" body-content-style="padding-top:4px">
         <template #header>
           <div class="info-head">
@@ -300,11 +348,38 @@ function goBack() {
           <div><span class="muted">種植日期</span>　{{ formatDate(selected.planted_at) }}</div>
           <div class="wide"><span class="muted">備註</span>　{{ selected.note || '-' }}</div>
         </div>
+
+        <div v-if="relatedTasks.length" class="related-block">
+          <div class="related-title">相關任務（單樹／區域／果園）</div>
+          <div v-for="p in relatedTasks" :key="p.assignment.id" class="rt-row">
+            <n-tag size="tiny" :bordered="false">{{ TARGET_TYPE_LABEL[p.assignment.target_type] }}</n-tag>
+            <span class="rt-name">{{ p.task.name }}</span>
+            <span class="muted">{{ formatDate(p.dueDate) }}</span>
+            <due-status-tag :status="p.dueStatus" />
+            <n-button
+              size="tiny"
+              type="primary"
+              :loading="executingId === p.assignment.id"
+              @click="execTask(p)"
+            >
+              {{ p.runningBatchId ? '繼續執行' : '開始執行' }}
+            </n-button>
+          </div>
+        </div>
+
         <div style="display: flex; justify-content: flex-end; gap: 8px">
+          <n-button type="primary" @click="openQuickAssign">指派任務給此樹</n-button>
           <n-button @click="router.push(`/tasks/history?tree=${selected.id}`)">查看此樹任務</n-button>
         </div>
       </n-drawer-content>
     </n-drawer>
+
+    <quick-assign-modal
+      v-model:show="quickAssignShow"
+      target-type="TREE"
+      :target-id="selectedId"
+      :target-label="selected ? selected.name || selected.code : ''"
+    />
 
     <n-modal v-model:show="showForm" preset="card" :title="formTitle" style="max-width: 400px">
       <n-form label-placement="top">
@@ -371,5 +446,30 @@ function goBack() {
 
 .kv-grid .wide {
   grid-column: span 2;
+}
+
+.related-block {
+  margin-bottom: 14px;
+  border-top: 1px dashed #e5e7eb;
+  padding-top: 10px;
+}
+
+.related-title {
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.rt-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  flex-wrap: wrap;
+}
+
+.rt-name {
+  font-size: 13.5px;
+  font-weight: 600;
 }
 </style>

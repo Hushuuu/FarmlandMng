@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   NButton,
@@ -19,11 +19,16 @@ import MapCanvas from '../components/orchard/MapCanvas.vue'
 import MapControls from '../components/orchard/MapControls.vue'
 import MapToolbar from '../components/orchard/MapToolbar.vue'
 import AreaMarker from '../components/orchard/AreaMarker.vue'
+import QuickAssignModal from '../components/task/QuickAssignModal.vue'
+import DueStatusTag from '../components/task/DueStatusTag.vue'
 import { orchardService } from '../services/orchardService'
 import { treeService } from '../services/treeService'
 import { getPendingTasks } from '../services/taskService'
-import type { Orchard } from '../types/database'
+import type { Orchard, PendingTaskInfo } from '../types/database'
+import { TARGET_TYPE_LABEL } from '../constants/status'
+import { formatDate } from '../utils/date'
 import { useAreaStore } from '../stores/orchard'
+import { useTaskStore } from '../stores/task'
 
 const route = useRoute()
 const router = useRouter()
@@ -31,6 +36,7 @@ const message = useMessage()
 const dialog = useDialog()
 const orchardId = route.params.orchardId as string
 const areaStore = useAreaStore()
+const taskStore = useTaskStore()
 
 const canvasRef = ref<InstanceType<typeof MapCanvas> | null>(null)
 const scale = ref(1)
@@ -183,6 +189,70 @@ async function refreshCounts() {
   }
 }
 
+/** 區域任務統計（今日 / 即將到期 / 逾期） */
+async function loadTaskStats() {
+  const pending = await getPendingTasks()
+  for (const a of areaStore.areas) {
+    taskStats[a.id] ??= { treeCount: 0, today: 0, upcoming: 0, overdue: 0 }
+    taskStats[a.id]!.today = 0
+    taskStats[a.id]!.upcoming = 0
+    taskStats[a.id]!.overdue = 0
+  }
+  for (const p of pending) {
+    if (!p.areaId || !areaStore.areas.some((a) => a.id === p.areaId)) continue
+    const s = (taskStats[p.areaId] ??= { treeCount: 0, today: 0, upcoming: 0, overdue: 0 })
+    if (p.dueStatus === 'DUE_TODAY') s.today++
+    else if (p.dueStatus === 'OVERDUE') s.overdue++
+    else if (p.dueStatus === 'UPCOMING') s.upcoming++
+  }
+}
+
+// ------------------------------------------------------------
+// 快速指派任務給區域（§24 / §25）
+// ------------------------------------------------------------
+const quickAssignShow = ref(false)
+
+function openQuickAssign() {
+  if (!selected.value) return
+  quickAssignShow.value = true
+}
+
+// ------------------------------------------------------------
+// 此區任務：從抽屜直接開始／繼續執行
+// ------------------------------------------------------------
+const relatedTasks = ref<PendingTaskInfo[]>([])
+const executingId = ref<string | null>(null)
+
+async function loadRelatedTasks() {
+  if (!selectedId.value) return
+  try {
+    const all = await getPendingTasks()
+    relatedTasks.value = all.filter(
+      (p) =>
+        p.assignment.target_type === 'ORCHARD' ||
+        (p.assignment.target_type === 'AREA' && p.areaId === selectedId.value),
+    )
+  } catch {
+    relatedTasks.value = []
+  }
+}
+
+watch(showInfo, (v) => {
+  if (v) void loadRelatedTasks()
+})
+
+async function execTask(p: PendingTaskInfo) {
+  executingId.value = p.assignment.id
+  try {
+    await taskStore.beginExecution(p.assignment.id)
+    showInfo.value = false
+  } catch (e) {
+    message.error(e instanceof Error ? e.message : '無法開始執行')
+  } finally {
+    executingId.value = null
+  }
+}
+
 onMounted(async () => {
   try {
     orchard.value = await orchardService.get(orchardId)
@@ -193,15 +263,7 @@ onMounted(async () => {
     }
     await Promise.all([areaStore.loadAreas(orchardId), refreshCounts()])
 
-    // 區域任務統計（今日 / 即將到期 / 逾期）
-    const pending = await getPendingTasks()
-    for (const p of pending) {
-      if (!p.areaId || !areaStore.areas.some((a) => a.id === p.areaId)) continue
-      const s = (taskStats[p.areaId] ??= { treeCount: 0, today: 0, upcoming: 0, overdue: 0 })
-      if (p.dueStatus === 'DUE_TODAY') s.today++
-      else if (p.dueStatus === 'OVERDUE') s.overdue++
-      else if (p.dueStatus === 'UPCOMING') s.upcoming++
-    }
+    await loadTaskStats()
 
     await nextTick()
     canvasRef.value?.ensureFit()
@@ -293,7 +355,7 @@ function enterArea() {
     <map-controls :edit-mode="editMode" @zoom-in="canvasRef?.zoomIn()" @zoom-out="canvasRef?.zoomOut()" @fit="canvasRef?.fit()" />
 
     <!-- 區域資訊（§55） -->
-    <n-drawer v-model:show="showInfo" placement="bottom" :height="280">
+    <n-drawer v-model:show="showInfo" placement="bottom" :height="400">
       <n-drawer-content v-if="selected" body-content-style="padding-top:4px">
         <template #header>
           <div class="info-head">
@@ -320,12 +382,40 @@ function enterArea() {
           </div>
         </div>
         <p class="muted desc">{{ selected.description || '　' }}</p>
+
+        <div v-if="relatedTasks.length" class="related-block">
+          <div class="related-title">此區任務（含果園層級）</div>
+          <div v-for="p in relatedTasks" :key="p.assignment.id" class="rt-row">
+            <n-tag size="tiny" :bordered="false">{{ TARGET_TYPE_LABEL[p.assignment.target_type] }}</n-tag>
+            <span class="rt-name">{{ p.task.name }}</span>
+            <span class="muted">{{ p.treeCount }} 棵 · {{ formatDate(p.dueDate) }}</span>
+            <due-status-tag :status="p.dueStatus" />
+            <n-button
+              size="tiny"
+              type="primary"
+              :loading="executingId === p.assignment.id"
+              @click="execTask(p)"
+            >
+              {{ p.runningBatchId ? '繼續執行' : '開始執行' }}
+            </n-button>
+          </div>
+        </div>
+
         <div style="display: flex; justify-content: flex-end; gap: 8px">
           <n-button @click="editMode = true; showInfo = false">進入編輯</n-button>
-          <n-button type="primary" @click="enterArea">進入區域</n-button>
+          <n-button type="primary" @click="openQuickAssign">指派任務</n-button>
+          <n-button secondary type="primary" @click="enterArea">進入區域</n-button>
         </div>
       </n-drawer-content>
     </n-drawer>
+
+    <quick-assign-modal
+      v-model:show="quickAssignShow"
+      target-type="AREA"
+      :target-id="selectedId"
+      :target-label="selected?.name ?? ''"
+      @created="loadTaskStats"
+    />
 
     <n-modal v-model:show="showForm" preset="card" :title="formTitle" style="max-width: 400px">
       <n-form label-placement="top">
@@ -402,6 +492,31 @@ function enterArea() {
 .desc {
   margin: 12px 0;
   white-space: pre-wrap;
+}
+
+.related-block {
+  margin-bottom: 14px;
+  border-top: 1px dashed #e5e7eb;
+  padding-top: 10px;
+}
+
+.related-title {
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.rt-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  flex-wrap: wrap;
+}
+
+.rt-name {
+  font-size: 13.5px;
+  font-weight: 600;
 }
 
 .size-row {
