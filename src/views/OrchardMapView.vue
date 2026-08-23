@@ -1,0 +1,416 @@
+<script setup lang="ts">
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import {
+  NButton,
+  NDrawer,
+  NDrawerContent,
+  NForm,
+  NFormItem,
+  NInput,
+  NInputNumber,
+  NModal,
+  NSpin,
+  NTag,
+  useDialog,
+  useMessage,
+} from 'naive-ui'
+import MapCanvas from '../components/orchard/MapCanvas.vue'
+import MapControls from '../components/orchard/MapControls.vue'
+import MapToolbar from '../components/orchard/MapToolbar.vue'
+import AreaMarker from '../components/orchard/AreaMarker.vue'
+import { orchardService } from '../services/orchardService'
+import { treeService } from '../services/treeService'
+import { getPendingTasks } from '../services/taskService'
+import type { Orchard } from '../types/database'
+import { useAreaStore } from '../stores/orchard'
+
+const route = useRoute()
+const router = useRouter()
+const message = useMessage()
+const dialog = useDialog()
+const orchardId = route.params.orchardId as string
+const areaStore = useAreaStore()
+
+const canvasRef = ref<InstanceType<typeof MapCanvas> | null>(null)
+const scale = ref(1)
+const offsetX = ref(0)
+const offsetY = ref(0)
+
+const loading = ref(true)
+const orchard = ref<Orchard | null>(null)
+const editMode = ref(false)
+const selectedId = ref<string | null>(null)
+const showInfo = ref(false)
+const showForm = ref(false)
+const formTitle = ref('新增區域')
+const saving = ref(false)
+
+interface AreaTaskStat {
+  treeCount: number
+  today: number
+  upcoming: number
+  overdue: number
+}
+const taskStats = reactive<Record<string, AreaTaskStat>>({})
+
+const mapWidth = computed(() => Number(orchard.value?.map_width ?? 2000))
+const mapHeight = computed(() => Number(orchard.value?.map_height ?? 1200))
+
+const selected = computed(() => areaStore.areas.find((a) => a.id === selectedId.value) ?? null)
+
+function statOf(areaId: string): AreaTaskStat {
+  return (
+    taskStats[areaId] ?? {
+      treeCount: 0,
+      today: 0,
+      upcoming: 0,
+      overdue: 0,
+    }
+  )
+}
+
+function select(id: string | null) {
+  selectedId.value = id
+  showInfo.value = !!id && !editMode.value
+}
+
+async function persistPosition(areaId: string) {
+  const a = areaStore.areas.find((x) => x.id === areaId)
+  if (!a) return
+  try {
+    await areaStore.updateAreaPosition(areaId, a.position_x, a.position_y)
+  } catch (e) {
+    message.error(e instanceof Error ? e.message : '儲存位置失敗')
+  }
+}
+
+// ------------------------------------------------------------
+// 新增 / 編輯區域
+// ------------------------------------------------------------
+const form = ref({ code: '', name: '', description: '', width: 300, height: 220 })
+
+function openCreate() {
+  const c = canvasRef.value?.centerVirtual() ?? { x: 300, y: 300 }
+  const w = 300
+  const h = 220
+  form.value = {
+    code: `A${areaStore.areas.length + 1}`,
+    name: '',
+    description: '',
+    width: w,
+    height: h,
+  }
+  pendingCreatePos.value = {
+    x: Math.max(10, c.x - w / 2),
+    y: Math.max(10, c.y - h / 2),
+  }
+  formTitle.value = '新增區域（建立後可拖曳調整位置）'
+  showForm.value = true
+}
+
+const pendingCreatePos = ref<{ x: number; y: number } | null>(null)
+
+function openEditSelected() {
+  if (!selected.value) return
+  form.value = {
+    code: selected.value.code,
+    name: selected.value.name,
+    description: selected.value.description ?? '',
+    width: Number(selected.value.width),
+    height: Number(selected.value.height),
+  }
+  pendingCreatePos.value = null
+  formTitle.value = '編輯區域'
+  showForm.value = true
+}
+
+async function saveForm() {
+  if (!form.value.code || !form.value.name) {
+    message.warning('請填寫區域編號與名稱')
+    return
+  }
+  saving.value = true
+  try {
+    if (pendingCreatePos.value) {
+      await areaStore.createArea({
+        orchard_id: orchardId,
+        ...form.value,
+        position_x: pendingCreatePos.value.x,
+        position_y: pendingCreatePos.value.y,
+        rotation: 0,
+        active: true,
+      })
+      message.success('已新增區域，可直接拖曳調整位置')
+    } else if (selected.value) {
+      await areaStore.updateArea(selected.value.id, { ...form.value })
+      message.success('已更新')
+    }
+    showForm.value = false
+  } catch (e) {
+    message.error(e instanceof Error ? e.message : '儲存失敗')
+  } finally {
+    saving.value = false
+  }
+}
+
+function confirmDeleteSelected() {
+  const target = selected.value
+  if (!target) return
+  dialog.warning({
+    title: '刪除區域',
+    content: `確定刪除「${target.name}」？區域將停用（軟刪除），歷史任務紀錄保留。`,
+    positiveText: '刪除',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        await areaStore.softDeleteArea(target.id)
+        select(null)
+        message.success('已刪除')
+        await refreshCounts()
+      } catch (e) {
+        message.error(e instanceof Error ? e.message : '刪除失敗')
+      }
+    },
+  })
+}
+
+async function refreshCounts() {
+  const counts = await treeService.countByAreas(areaStore.areas.map((a) => a.id))
+  for (const a of areaStore.areas) {
+    const s = (taskStats[a.id] ??= { treeCount: 0, today: 0, upcoming: 0, overdue: 0 })
+    s.treeCount = counts[a.id] ?? 0
+  }
+}
+
+onMounted(async () => {
+  try {
+    orchard.value = await orchardService.get(orchardId)
+    if (!orchard.value) {
+      message.error('找不到果園')
+      router.replace('/orchards')
+      return
+    }
+    await Promise.all([areaStore.loadAreas(orchardId), refreshCounts()])
+
+    // 區域任務統計（今日 / 即將到期 / 逾期）
+    const pending = await getPendingTasks()
+    for (const p of pending) {
+      if (!p.areaId || !areaStore.areas.some((a) => a.id === p.areaId)) continue
+      const s = (taskStats[p.areaId] ??= { treeCount: 0, today: 0, upcoming: 0, overdue: 0 })
+      if (p.dueStatus === 'DUE_TODAY') s.today++
+      else if (p.dueStatus === 'OVERDUE') s.overdue++
+      else if (p.dueStatus === 'UPCOMING') s.upcoming++
+    }
+
+    await nextTick()
+    canvasRef.value?.ensureFit()
+  } catch (e) {
+    message.error(e instanceof Error ? e.message : '載入失敗')
+  } finally {
+    loading.value = false
+  }
+
+  window.addEventListener('resize', onResize)
+})
+
+function onResize() {
+  canvasRef.value?.fit()
+}
+onBeforeUnmount(() => window.removeEventListener('resize', onResize))
+
+function goBack() {
+  if (editMode.value) {
+    editMode.value = false
+    select(null)
+    return
+  }
+  router.push('/orchards')
+}
+
+function enterArea() {
+  if (!selected.value) return
+  router.push(`/orchards/${orchardId}/areas/${selected.value.id}`)
+}
+</script>
+
+<template>
+  <div class="map-view">
+    <map-toolbar
+      :title="orchard?.name ?? '果園地圖'"
+      :subtitle="editMode ? '編輯模式：拖曳區域調整位置' : `${areaStore.areas.length} 個區域`"
+      :edit-mode="editMode"
+      :can-delete="!!selected"
+      add-label="＋ 新增區域"
+      @back="goBack"
+      @toggle-edit="
+        () => {
+          editMode = !editMode
+          select(null)
+        }
+      "
+      @add="openCreate"
+      @delete="confirmDeleteSelected"
+    >
+      <template #edit-actions>
+        <n-button size="small" secondary @click="openCreate">＋ 新增區域</n-button>
+        <n-button size="small" secondary :disabled="!selected" @click="openEditSelected">編輯資訊</n-button>
+        <n-button size="small" secondary type="error" :disabled="!selected" @click="confirmDeleteSelected">
+          刪除
+        </n-button>
+      </template>
+    </map-toolbar>
+
+    <n-spin :show="loading" class="spin-wrap">
+      <map-canvas
+        ref="canvasRef"
+        v-model:scale="scale"
+        v-model:offset-x="offsetX"
+        v-model:offset-y="offsetY"
+        :width="mapWidth"
+        :height="mapHeight"
+        @tap="select(null)"
+      >
+        <area-marker
+          v-for="a in areaStore.areas"
+          :key="a.id"
+          v-model:x="a.position_x"
+          v-model:y="a.position_y"
+          v-model:scale="scale"
+          :width="Number(a.width)"
+          :height="Number(a.height)"
+          :label="a.name"
+          :rotation="Number(a.rotation)"
+          :selected="selectedId === a.id"
+          :draggable="editMode"
+          :badge="statOf(a.id).overdue > 0 ? `逾 ${statOf(a.id).overdue}` : null"
+          @select="select(a.id)"
+          @drag-end="persistPosition(a.id)"
+        />
+      </map-canvas>
+    </n-spin>
+
+    <map-controls :edit-mode="editMode" @zoom-in="canvasRef?.zoomIn()" @zoom-out="canvasRef?.zoomOut()" @fit="canvasRef?.fit()" />
+
+    <!-- 區域資訊（§55） -->
+    <n-drawer v-model:show="showInfo" placement="bottom" :height="280">
+      <n-drawer-content v-if="selected" body-content-style="padding-top:4px">
+        <template #header>
+          <div class="info-head">
+            <span class="name">{{ selected.name }}</span>
+            <n-tag size="small">{{ selected.code }}</n-tag>
+          </div>
+        </template>
+        <div class="stat-row">
+          <div class="cell">
+            <div class="muted">果樹</div>
+            <div class="v">{{ statOf(selected.id).treeCount }}</div>
+          </div>
+          <div class="cell">
+            <div class="muted">今日任務</div>
+            <div class="v warn">{{ statOf(selected.id).today }}</div>
+          </div>
+          <div class="cell">
+            <div class="muted">即將到期</div>
+            <div class="v info">{{ statOf(selected.id).upcoming }}</div>
+          </div>
+          <div class="cell">
+            <div class="muted">逾期</div>
+            <div class="v err">{{ statOf(selected.id).overdue }}</div>
+          </div>
+        </div>
+        <p class="muted desc">{{ selected.description || '　' }}</p>
+        <div style="display: flex; justify-content: flex-end; gap: 8px">
+          <n-button @click="editMode = true; showInfo = false">進入編輯</n-button>
+          <n-button type="primary" @click="enterArea">進入區域</n-button>
+        </div>
+      </n-drawer-content>
+    </n-drawer>
+
+    <n-modal v-model:show="showForm" preset="card" :title="formTitle" style="max-width: 400px">
+      <n-form label-placement="top">
+        <n-form-item label="區域編號" required>
+          <n-input v-model:value="form.code" placeholder="例如：A01" />
+        </n-form-item>
+        <n-form-item label="區域名稱" required>
+          <n-input v-model:value="form.name" placeholder="例如：A 區" />
+        </n-form-item>
+        <n-form-item label="說明">
+          <n-input v-model:value="form.description" type="textarea" :rows="2" placeholder="選填" />
+        </n-form-item>
+        <div class="size-row">
+          <n-form-item label="寬度">
+            <n-input-number v-model:value="form.width" :min="50" :max="5000" :step="20" style="width: 100%" />
+          </n-form-item>
+          <n-form-item label="高度">
+            <n-input-number v-model:value="form.height" :min="50" :max="5000" :step="20" style="width: 100%" />
+          </n-form-item>
+        </div>
+        <n-button block type="primary" :loading="saving" @click="saveForm">儲存</n-button>
+      </n-form>
+    </n-modal>
+  </div>
+</template>
+
+<style scoped>
+.map-view {
+  position: relative;
+  height: 100vh;
+  overflow: hidden;
+  background: #f0f2f5;
+}
+
+@media (max-width: 767px) {
+  .map-view {
+    height: calc(100vh - var(--bottom-nav-height));
+  }
+}
+
+.spin-wrap {
+  position: absolute;
+  inset: 0;
+}
+
+.info-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.info-head .name {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.stat-row {
+  display: flex;
+  gap: 18px;
+}
+
+.cell .v {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.v.warn {
+  color: #f0a020;
+}
+
+.v.info {
+  color: #2080f0;
+}
+
+.v.err {
+  color: #d03050;
+}
+
+.desc {
+  margin: 12px 0;
+  white-space: pre-wrap;
+}
+
+.size-row {
+  display: flex;
+  gap: 10px;
+}
+</style>

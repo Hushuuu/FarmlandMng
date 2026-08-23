@@ -1,0 +1,68 @@
+:root {
+  --app-header-height: 52px;
+  --bottom-nav-height: 56px;
+  --sidebar-width: 224px;
+  --primary: #18a058;
+  --bg: #f5f6f8;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', system-ui, -apple-system,
+    sans-serif;
+  background: var(--bg);
+  color: #1f2224;
+  overscroll-behavior: none;
+}
+
+.page {
+  padding: 16px;
+  max-width: 1020px;
+  margin: 0 auto;
+}
+
+.page-title {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0 0 12px;
+}
+
+.section-title {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 20px 0 8px;
+}
+
+.muted {
+  color: #8a8f96;
+  font-size: 12px;
+}
+
+.stat-value {
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.clickable {
+  cursor: pointer;
+}
+
+@media (max-width: 767px) {
+  .page {
+    padding: 12px;
+    padding-top: calc(var(--app-header-height) + 12px);
+    padding-bottom: calc(var(--bottom-nav-height) + 16px);
+  }
+}
