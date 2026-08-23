@@ -61,8 +61,6 @@ body {
 
 @media (max-width: 767px) {
   .page {
-    padding: 12px;
-    padding-top: calc(var(--app-header-height) + 12px);
-    padding-bottom: calc(var(--bottom-nav-height) + 16px);
+    padding: 12px 12px 24px;
   }
 }

@@ -2,18 +2,16 @@
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
+  NButton,
   NConfigProvider,
   NDialogProvider,
   NDrawer,
   NDrawerContent,
   NIcon,
-  NLayout,
-  NLayoutSider,
   NMessageProvider,
   zhTW,
   dateZhTW,
 } from 'naive-ui'
-import type { Component } from 'vue'
 import {
   HomeOutlined,
   MapOutlined,
@@ -35,10 +33,13 @@ const route = useRoute()
 const router = useRouter()
 const showMenu = ref(false)
 
+const isLogin = computed(() => route.name === 'login')
+const fullscreen = computed(() => !!route.meta.fullscreen)
+
 interface MenuItem {
   label: string
   to: string
-  icon?: Component
+  icon?: object
 }
 interface MenuGroup {
   title: string
@@ -108,60 +109,47 @@ function go(to: string) {
   <n-config-provider :locale="zhTW" :date-locale="dateZhTW">
     <n-message-provider>
       <n-dialog-provider>
-        <router-view v-if="route.name === 'login'" />
-        <div v-else class="app-shell">
-          <!-- Desktop Sidebar -->
-          <n-layout has-sider class="desktop-layout" content-style="height:100%">
-            <n-layout-sider
-              bordered
-              collapse-mode="width"
-              :width="224"
-              :native-scrollbar="false"
-              class="sidebar"
-            >
-              <div class="brand">
-                <n-icon size="22" color="#18a058"><ParkOutlined /></n-icon>
-                <span>果園管理系統</span>
-              </div>
-              <div class="menu-scroll">
-                <div v-for="group in menuGroups" :key="group.title" class="menu-group">
-                  <div class="menu-group-title">{{ group.title }}</div>
-                  <div
-                    v-for="item in group.items"
-                    :key="item.to"
-                    class="menu-item"
-                    :class="{ active: isActive(item.to) }"
-                    @click="go(item.to)"
-                  >
-                    <n-icon v-if="item.icon" size="17"><component :is="item.icon" /></n-icon>
-                    <span>{{ item.label }}</span>
-                  </div>
+        <router-view v-if="isLogin" />
+
+        <div v-else class="app-shell" :class="{ fullscreen }">
+          <aside class="sidebar">
+            <div class="brand">
+              <n-icon size="22" color="#18a058"><ParkOutlined /></n-icon>
+              <span>果園管理系統</span>
+            </div>
+            <div class="menu-scroll">
+              <div v-for="group in menuGroups" :key="group.title" class="menu-group">
+                <div class="menu-group-title">{{ group.title }}</div>
+                <div
+                  v-for="item in group.items"
+                  :key="item.to"
+                  class="menu-item"
+                  :class="{ active: isActive(item.to) }"
+                  @click="go(item.to)"
+                >
+                  <n-icon v-if="item.icon" size="17"><component :is="item.icon" /></n-icon>
+                  <span>{{ item.label }}</span>
                 </div>
               </div>
-              <div class="sidebar-footer">
-                <span class="muted">{{ auth.displayName }}</span>
-                <n-button quaternary size="tiny" @click="handleLogout">登出</n-button>
-              </div>
-            </n-layout-sider>
+            </div>
+            <div class="sidebar-footer">
+              <span class="muted">{{ auth.displayName }}</span>
+              <n-button quaternary size="tiny" @click="handleLogout">登出</n-button>
+            </div>
+          </aside>
 
-            <n-layout-content class="desktop-content">
-              <router-view />
-            </n-layout-content>
-          </n-layout>
-
-          <!-- Mobile -->
-          <header class="mobile-header">
+          <header v-if="!fullscreen" class="mobile-header">
             <span class="mobile-title">{{ pageTitle || '果園管理系統' }}</span>
             <n-button quaternary circle size="small" @click="showMenu = true">
               <template #icon><n-icon><MenuOutlined /></n-icon></template>
             </n-button>
           </header>
 
-          <main class="mobile-main">
+          <main class="app-main">
             <router-view />
           </main>
 
-          <nav class="bottom-nav">
+          <nav v-if="!fullscreen" class="bottom-nav">
             <div
               v-for="item in bottomNav"
               :key="item.to"
@@ -172,7 +160,7 @@ function go(to: string) {
               <n-icon size="20"><component :is="item.icon" /></n-icon>
               <span>{{ item.label }}</span>
             </div>
-            <div class="bottom-nav-item" :class="{ active: showMenu }" @click="showMenu = true">
+            <div class="bottom-nav-item" @click="showMenu = true">
               <n-icon size="20"><MapOutlined /></n-icon>
               <span>更多</span>
             </div>
@@ -214,21 +202,30 @@ function go(to: string) {
 
 <style scoped>
 .app-shell {
-  height: 100%;
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: var(--app-header-height) 1fr auto;
+  grid-template-areas:
+    'header'
+    'main'
+    'nav';
+  height: 100vh;
 }
 
-.desktop-layout {
+.app-shell.fullscreen {
+  grid-template-rows: 1fr;
+  grid-template-areas:
+    'main';
+}
+
+.sidebar {
   display: none;
+  grid-area: sidebar;
 }
 
 .mobile-header {
+  grid-area: header;
   display: flex;
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 100;
-  height: var(--app-header-height);
   align-items: center;
   justify-content: space-between;
   padding: 0 8px 0 16px;
@@ -236,27 +233,35 @@ function go(to: string) {
   border-bottom: 1px solid #e8eaf0;
 }
 
+.app-shell.fullscreen .mobile-header {
+  display: none;
+}
+
 .mobile-title {
   font-size: 16px;
   font-weight: 600;
 }
 
-.mobile-main {
-  display: block;
-  min-height: 100%;
+.app-main {
+  grid-area: main;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--bg);
+  min-height: 0;
+  position: relative;
 }
 
 .bottom-nav {
+  grid-area: nav;
   display: flex;
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 100;
   height: var(--bottom-nav-height);
   background: #fff;
   border-top: 1px solid #e8eaf0;
   padding-bottom: env(safe-area-inset-bottom);
+}
+
+.app-shell.fullscreen .bottom-nav {
+  display: none;
 }
 
 .bottom-nav-item {
@@ -278,23 +283,29 @@ function go(to: string) {
 }
 
 @media (min-width: 768px) {
-  .mobile-header,
-  .bottom-nav,
-  .mobile-main {
-    display: none;
+  .app-shell:not(.fullscreen) {
+    grid-template-columns: var(--sidebar-width) 1fr;
+    grid-template-rows: 1fr;
+    grid-template-areas:
+      'sidebar main';
   }
 
-  .desktop-layout {
-    display: flex;
-    height: 100vh;
+  .app-shell.fullscreen {
+    grid-template-columns: var(--sidebar-width) 1fr;
+    grid-template-areas:
+      'sidebar main';
   }
 
   .sidebar {
     display: flex;
+    flex-direction: column;
+    background: #fff;
+    border-right: 1px solid #eceef2;
   }
 
-  .desktop-content {
-    background: var(--bg);
+  .mobile-header,
+  .bottom-nav {
+    display: none !important;
   }
 }
 </style>

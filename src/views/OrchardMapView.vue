@@ -355,15 +355,10 @@ function enterArea() {
 <style scoped>
 .map-view {
   position: relative;
-  height: 100vh;
+  height: 100%;
+  min-height: 100vh;
   overflow: hidden;
   background: #f0f2f5;
-}
-
-@media (max-width: 767px) {
-  .map-view {
-    height: calc(100vh - var(--bottom-nav-height));
-  }
 }
 
 .spin-wrap {
