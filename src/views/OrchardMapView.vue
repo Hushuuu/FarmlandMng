@@ -30,6 +30,7 @@ import { formatDate } from '../utils/date'
 import { genCode } from '../utils/code'
 import { useAreaStore } from '../stores/orchard'
 import { useTaskStore } from '../stores/task'
+import { useMasterStore } from '../stores/tree'
 
 const route = useRoute()
 const router = useRouter()
@@ -38,6 +39,7 @@ const dialog = useDialog()
 const orchardId = route.params.orchardId as string
 const areaStore = useAreaStore()
 const taskStore = useTaskStore()
+const masterStore = useMasterStore()
 
 const canvasRef = ref<InstanceType<typeof MapCanvas> | null>(null)
 const scale = ref(1)
@@ -55,11 +57,16 @@ const saving = ref(false)
 
 interface AreaTaskStat {
   treeCount: number
+  typeLabel: string
   today: number
   upcoming: number
   overdue: number
 }
 const taskStats = reactive<Record<string, AreaTaskStat>>({})
+
+function emptyStat(): AreaTaskStat {
+  return { treeCount: 0, typeLabel: '', today: 0, upcoming: 0, overdue: 0 }
+}
 
 const mapWidth = computed(() => Number(orchard.value?.map_width ?? 2000))
 const mapHeight = computed(() => Number(orchard.value?.map_height ?? 1200))
@@ -67,14 +74,7 @@ const mapHeight = computed(() => Number(orchard.value?.map_height ?? 1200))
 const selected = computed(() => areaStore.areas.find((a) => a.id === selectedId.value) ?? null)
 
 function statOf(areaId: string): AreaTaskStat {
-  return (
-    taskStats[areaId] ?? {
-      treeCount: 0,
-      today: 0,
-      upcoming: 0,
-      overdue: 0,
-    }
-  )
+  return taskStats[areaId] ?? emptyStat()
 }
 
 function select(id: string | null) {
@@ -184,11 +184,17 @@ function confirmDeleteSelected() {
   })
 }
 
+/** 區域果樹統計：總數 + 依類型（地圖區塊副標顯示） */
 async function refreshCounts() {
-  const counts = await treeService.countByAreas(areaStore.areas.map((a) => a.id))
+  await masterStore.loadAll()
+  const grouped = await treeService.countByAreasGrouped(areaStore.areas.map((a) => a.id))
   for (const a of areaStore.areas) {
-    const s = (taskStats[a.id] ??= { treeCount: 0, today: 0, upcoming: 0, overdue: 0 })
-    s.treeCount = counts[a.id] ?? 0
+    const s = (taskStats[a.id] ??= emptyStat())
+    const groups = grouped[a.id] ?? []
+    s.treeCount = groups.reduce((sum, g) => sum + g.count, 0)
+    s.typeLabel = groups
+      .map((g) => `${masterStore.treeTypeName(g.treeTypeId) ?? '未設定'}×${g.count}`)
+      .join('　')
   }
 }
 
@@ -196,14 +202,14 @@ async function refreshCounts() {
 async function loadTaskStats() {
   const pending = await getPendingTasks()
   for (const a of areaStore.areas) {
-    taskStats[a.id] ??= { treeCount: 0, today: 0, upcoming: 0, overdue: 0 }
+    taskStats[a.id] ??= emptyStat()
     taskStats[a.id]!.today = 0
     taskStats[a.id]!.upcoming = 0
     taskStats[a.id]!.overdue = 0
   }
   for (const p of pending) {
     if (!p.areaId || !areaStore.areas.some((a) => a.id === p.areaId)) continue
-    const s = (taskStats[p.areaId] ??= { treeCount: 0, today: 0, upcoming: 0, overdue: 0 })
+    const s = (taskStats[p.areaId] ??= emptyStat())
     if (p.dueStatus === 'DUE_TODAY') s.today++
     else if (p.dueStatus === 'OVERDUE') s.overdue++
     else if (p.dueStatus === 'UPCOMING') s.upcoming++
@@ -345,6 +351,7 @@ function enterArea() {
           :width="Number(a.width)"
           :height="Number(a.height)"
           :label="a.name"
+          :subtitle="statOf(a.id).typeLabel || null"
           :rotation="Number(a.rotation)"
           :selected="selectedId === a.id"
           :draggable="editMode"
@@ -382,6 +389,9 @@ function enterArea() {
             <div class="muted">逾期</div>
             <div class="v err">{{ statOf(selected.id).overdue }}</div>
           </div>
+        </div>
+        <div v-if="statOf(selected.id).typeLabel" class="muted" style="margin-top: 8px">
+          類型：{{ statOf(selected.id).typeLabel }}
         </div>
         <p class="muted desc">{{ selected.description || '　' }}</p>
 

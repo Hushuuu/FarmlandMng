@@ -528,10 +528,15 @@ export async function listBatchSummaries(limit = 200): Promise<BatchSummary[]> {
 
   return batchList.map((b) => {
     const a = aMap.get(b.task_assignment_id)
+    const ids = a ? resolveTargetIds(refs, a) : { orchardId: null, areaId: null }
     return {
       ...b,
+      taskId: a?.task?.id ?? '',
       taskName: a?.task?.name ?? '?',
       categoryName: a?.task?.category?.name ?? null,
+      targetType: a?.target_type ?? 'ORCHARD',
+      orchardId: ids.orchardId,
+      areaId: ids.areaId,
       targetLabel: a ? targetLabelOf(refs, a).path : '',
       totalItems: counts[b.id]?.total ?? 0,
       completedItems: counts[b.id]?.done ?? 0,

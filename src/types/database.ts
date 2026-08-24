@@ -132,8 +132,13 @@ export interface PendingTaskInfo {
 }
 
 export interface BatchSummary extends ExecutionBatch {
+  taskId: string
   taskName: string
   categoryName: string | null
+  targetType: TargetType
+  orchardId: string | null
+  areaId: string | null
+  /** 果園 / 區域（/ 樹）完整路徑 */
   targetLabel: string
   totalItems: number
   completedItems: number

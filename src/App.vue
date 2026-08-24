@@ -70,8 +70,7 @@ const menuGroups = computed<MenuGroup[]>(() => [
     items: [
       { label: '任務設定', to: '/tasks', icon: ChecklistOutlined },
       { label: '待執行任務', to: '/tasks/pending', icon: TaskAltOutlined },
-      { label: '執行紀錄', to: '/tasks/executions', icon: ChecklistOutlined },
-      { label: '任務歷史', to: '/tasks/history', icon: HistoryOutlined },
+      { label: '執行歷史', to: '/tasks/history', icon: HistoryOutlined },
     ],
   },
   {

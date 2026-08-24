@@ -34,6 +34,16 @@ export const orchardService = {
 }
 
 export const areaService = {
+  async listAll(): Promise<Area[]> {
+    const { data, error } = await supabase
+      .from('areas')
+      .select('*')
+      .eq('active', true)
+      .order('code')
+    if (error) throw error
+    return (data ?? []) as Area[]
+  },
+
   async listByOrchard(orchardId: string, includeInactive = false): Promise<Area[]> {
     let q = supabase.from('areas').select('*').eq('orchard_id', orchardId).order('code')
     if (!includeInactive) q = q.eq('active', true)

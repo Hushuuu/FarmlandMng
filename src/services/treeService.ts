@@ -88,6 +88,30 @@ export const treeService = {
     for (const row of data ?? []) result[row.area_id] = (result[row.area_id] ?? 0) + 1
     return result
   },
+
+  /** 每個區域內的果樹，依類型分組統計 */
+  async countByAreasGrouped(
+    areaIds: string[],
+  ): Promise<Record<string, { treeTypeId: string | null; count: number }[]>> {
+    if (!areaIds.length) return {}
+    const { data, error } = await supabase
+      .from('trees')
+      .select('area_id, tree_type_id')
+      .in('area_id', areaIds)
+      .eq('active', true)
+    if (error) throw error
+    const result: Record<string, { treeTypeId: string | null; count: number }[]> = {}
+    for (const row of data ?? []) {
+      const list = (result[row.area_id] ??= [])
+      const g = list.find((x) => x.treeTypeId === row.tree_type_id)
+      if (g) g.count++
+      else list.push({ treeTypeId: row.tree_type_id, count: 1 })
+    }
+    for (const k of Object.keys(result)) {
+      result[k]!.sort((a, b) => b.count - a.count)
+    }
+    return result
+  },
 }
 
 export const taskCategoryService = {

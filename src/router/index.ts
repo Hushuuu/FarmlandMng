@@ -40,16 +40,10 @@ const router = createRouter({
       meta: { title: '待執行任務' },
     },
     {
-      path: '/tasks/executions',
-      name: 'tasks-executions',
-      component: () => import('../views/ExecutionsView.vue'),
-      meta: { title: '執行紀錄' },
-    },
-    {
       path: '/tasks/history',
       name: 'tasks-history',
       component: () => import('../views/HistoryView.vue'),
-      meta: { title: '任務歷史' },
+      meta: { title: '執行歷史' },
     },
     { path: '/settings', name: 'settings', component: () => import('../views/SettingsView.vue'), meta: { title: '系統設定' } },
     { path: '/:pathMatch(.*)*', redirect: '/' },

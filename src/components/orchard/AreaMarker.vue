@@ -6,12 +6,13 @@ const props = withDefaults(
     width: number
     height: number
     label: string
+    subtitle?: string | null
     rotation?: number
     selected?: boolean
     draggable?: boolean
     badge?: string | null
   }>(),
-  { rotation: 0, selected: false, draggable: false, badge: null },
+  { subtitle: null, rotation: 0, selected: false, draggable: false, badge: null },
 )
 
 const x = defineModel<number>('x', { required: true })
@@ -74,6 +75,7 @@ const style = computed(() => ({
     @pointercancel="onPointerUp"
   >
     <div class="area-label">{{ label }}</div>
+    <div v-if="subtitle" class="area-sub">{{ subtitle }}</div>
     <div v-if="badge" class="area-badge">{{ badge }}</div>
   </div>
 </template>
@@ -107,6 +109,22 @@ const style = computed(() => ({
   color: #14663c;
   text-align: center;
   padding: 4px;
+  pointer-events: none;
+}
+
+.area-sub {
+  position: absolute;
+  bottom: 6px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #2c7a52;
+  padding: 0 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   pointer-events: none;
 }
 
