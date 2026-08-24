@@ -1,12 +1,19 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { NEmpty, NSelect, NSpin, NTag } from 'naive-ui'
+import { NButton, NEmpty, NSelect, NSpin, NTag, useDialog, useMessage } from 'naive-ui'
 import { areaService, orchardService } from '../services/orchardService'
 import type { Area, BatchSummary, ItemStatus, Orchard } from '../types/database'
-import { getBatchWithItems, listBatchSummaries } from '../services/taskService'
+import {
+  cancelSettlement,
+  getBatchWithItems,
+  hardDeleteBatch,
+  listBatchSummaries,
+} from '../services/taskService'
 import { BATCH_STATUS_META, ITEM_STATUS_META } from '../constants/status'
-import { formatDateWithWeekday } from '../utils/date'
+import { formatDateWithWeekday, toDateStr } from '../utils/date'
+import { useManagementStore } from '../stores/management'
+import { useTaskStore } from '../stores/task'
 
 interface DetailItem {
   id: string
@@ -14,8 +21,21 @@ interface DetailItem {
   label: string
 }
 
+interface SettlementGroup {
+  key: string
+  location: string
+  taskName: string
+  categoryName: string | null
+  settledCount: number
+  lastDate: string
+}
+
 const route = useRoute()
 const treeId = computed(() => (route.query.tree as string) ?? null)
+const message = useMessage()
+const dialog = useDialog()
+const management = useManagementStore()
+const taskStore = useTaskStore()
 
 const loading = ref(true)
 const treeLabel = ref('')
@@ -31,6 +51,7 @@ const details = reactive(new Map<string, DetailItem[]>())
 const orchardFilter = ref<string>('ALL')
 const areaFilter = ref<string>('ALL')
 const taskFilter = ref<string>('ALL')
+const groupBy = ref<'ORCHARD' | 'AREA'>('ORCHARD')
 
 const orchardOptions = computed(() => [
   { label: '全部果園', value: 'ALL' },
@@ -57,6 +78,12 @@ function pickOrchard() {
   areaFilter.value = 'ALL'
 }
 
+function settlementDate(batch: BatchSummary): string {
+  if (!batch.completed_at) return batch.scheduled_date
+  const date = new Date(batch.completed_at)
+  return Number.isNaN(date.getTime()) ? batch.scheduled_date : toDateStr(date)
+}
+
 const filtered = computed(() =>
   batches.value.filter(
     (b) =>
@@ -66,8 +93,82 @@ const filtered = computed(() =>
   ),
 )
 
+const settlementGroups = computed<SettlementGroup[]>(() => {
+  const groups = new Map<string, SettlementGroup>()
+  for (const batch of filtered.value) {
+    if (batch.status !== 'COMPLETED') continue
+    const settledDate = settlementDate(batch)
+    const parts = batch.targetLabel.split(' / ').filter(Boolean)
+    const orchardLabel = parts[0] ?? '未指定果園'
+    const areaLabel = parts[1] ?? '果園層級'
+    const location =
+      groupBy.value === 'ORCHARD'
+        ? orchardLabel
+        : `${orchardLabel} / ${batch.areaId ? areaLabel : '果園層級'}`
+    const key =
+      groupBy.value === 'ORCHARD'
+        ? `${batch.orchardId ?? orchardLabel}:${batch.taskId || batch.taskName}`
+        : `${batch.orchardId ?? orchardLabel}:${batch.areaId ?? 'ORCHARD'}:${batch.taskId || batch.taskName}`
+    const current = groups.get(key)
+    if (current) {
+      current.settledCount++
+      if (settledDate > current.lastDate) current.lastDate = settledDate
+    } else {
+      groups.set(key, {
+        key,
+        location,
+        taskName: batch.taskName,
+        categoryName: batch.categoryName,
+        settledCount: 1,
+        lastDate: settledDate,
+      })
+    }
+  }
+  return [...groups.values()].sort((a, b) => {
+    const countDiff = b.settledCount - a.settledCount
+    return countDiff !== 0 ? countDiff : b.lastDate.localeCompare(a.lastDate)
+  })
+})
+
 function statusMeta(s: BatchSummary['status']) {
   return BATCH_STATUS_META[s]
+}
+
+function confirmCancelSettlement(batch: BatchSummary) {
+  dialog.warning({
+    title: '取消結算',
+    content: '將保留目前逐樹進度，並把本批次恢復為「執行中」，之後可以繼續執行。確定取消結算？',
+    positiveText: '取消結算',
+    negativeText: '返回',
+    onPositiveClick: async () => {
+      try {
+        await cancelSettlement(batch.id)
+        await load()
+        message.success('已取消結算，可從待執行任務繼續')
+      } catch (e) {
+        message.error(e instanceof Error ? e.message : '取消結算失敗')
+      }
+    },
+  })
+}
+
+function confirmHardDeleteBatch(batch: BatchSummary) {
+  dialog.error({
+    title: '永久刪除執行紀錄',
+    content: `將永久刪除「${batch.taskName}」在 ${batch.scheduled_date} 的整批執行紀錄與逐樹明細，且無法復原。確定繼續？`,
+    positiveText: '永久刪除',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        await hardDeleteBatch(batch.id)
+        if (taskStore.activeBatch?.id === batch.id) taskStore.clearExecution()
+        await load()
+        message.success('執行紀錄已永久刪除')
+      } catch (e) {
+        message.error(e instanceof Error ? e.message : '永久刪除失敗')
+      }
+    },
+  })
 }
 
 /** 展開時才載入逐樹明細 */
@@ -162,6 +263,35 @@ onMounted(load)
     </div>
 
     <n-spin :show="loading">
+      <section v-if="!treeId" class="settlement-panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">任務結算次數</div>
+            <div class="muted">依果園或區域統計已完成的執行批次</div>
+          </div>
+          <div class="group-toggle">
+            <n-button size="tiny" :type="groupBy === 'ORCHARD' ? 'primary' : 'default'" @click="groupBy = 'ORCHARD'">
+              依果園
+            </n-button>
+            <n-button size="tiny" :type="groupBy === 'AREA' ? 'primary' : 'default'" @click="groupBy = 'AREA'">
+              依區域
+            </n-button>
+          </div>
+        </div>
+        <div v-if="settlementGroups.length" class="settlement-list">
+          <div v-for="group in settlementGroups" :key="group.key" class="settlement-row">
+            <div class="settlement-location">{{ group.location }}</div>
+            <div class="settlement-task">
+              {{ group.taskName }}
+              <span v-if="group.categoryName" class="cat">{{ group.categoryName }}</span>
+            </div>
+            <div class="settlement-count">{{ group.settledCount }} 次</div>
+            <div class="muted">最近 {{ formatDateWithWeekday(group.lastDate) }}</div>
+          </div>
+        </div>
+        <div v-else class="muted settlement-empty">目前篩選條件沒有已結算的任務</div>
+      </section>
+
       <n-empty v-if="!filtered.length && !loading" description="沒有符合條件的紀錄" style="padding: 40px 0" />
 
       <div class="list">
@@ -180,7 +310,27 @@ onMounted(load)
                 {{ b.totalItems === 0 ? '' : b.completedItems === b.totalItems ? '完成' : b.completedItems === 0 ? '未完成' : '部分完成' }}
               </div>
             </div>
-            <n-tag size="small" :type="statusMeta(b.status).type" round>{{ statusMeta(b.status).label }}</n-tag>
+            <div class="summary-actions">
+              <n-tag size="small" :type="statusMeta(b.status).type" round>{{ statusMeta(b.status).label }}</n-tag>
+              <n-button
+                v-if="b.status === 'COMPLETED'"
+                size="tiny"
+                quaternary
+                type="warning"
+                @click.stop="confirmCancelSettlement(b)"
+              >
+                取消結算
+              </n-button>
+              <n-button
+                v-if="management.unlocked"
+                size="tiny"
+                quaternary
+                type="error"
+                @click.stop="confirmHardDeleteBatch(b)"
+              >
+                永久刪除
+              </n-button>
+            </div>
           </summary>
 
           <div class="detail-list">
@@ -207,9 +357,87 @@ onMounted(load)
   margin-bottom: 12px;
 }
 
+.settlement-panel {
+  margin-bottom: 14px;
+  background: #fff;
+  border: 1px solid #e8eaf0;
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.panel-title {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.group-toggle {
+  display: flex;
+  gap: 4px;
+}
+
+.settlement-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settlement-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.2fr) minmax(120px, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  border-top: 1px solid #f0f1f3;
+  padding-top: 7px;
+  font-size: 13px;
+}
+
+.settlement-location,
+.settlement-task {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settlement-location {
+  font-weight: 600;
+}
+
+.settlement-count {
+  color: var(--primary);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.settlement-empty {
+  padding: 10px 0 2px;
+  text-align: center;
+}
+
 @media (max-width: 560px) {
   .filters {
     grid-template-columns: 1fr;
+  }
+
+  .panel-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .settlement-row {
+    grid-template-columns: 1fr auto;
+  }
+
+  .settlement-row .muted {
+    grid-column: 1 / -1;
   }
 }
 
@@ -233,6 +461,14 @@ onMounted(load)
   gap: 8px;
   cursor: pointer;
   list-style: none;
+}
+
+.summary-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .summary::-webkit-details-marker {

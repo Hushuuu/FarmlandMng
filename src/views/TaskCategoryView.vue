@@ -11,14 +11,19 @@ import {
   NModal,
   NSpin,
   NSwitch,
+  NTag,
+  useDialog,
   useMessage,
 } from 'naive-ui'
 import { useMasterStore } from '../stores/tree'
 import { genCode } from '../utils/code'
 import type { TaskCategory } from '../types/database'
+import { useManagementStore } from '../stores/management'
 
 const masterStore = useMasterStore()
 const message = useMessage()
+const dialog = useDialog()
+const management = useManagementStore()
 
 const loading = ref(false)
 const showForm = ref(false)
@@ -80,10 +85,27 @@ async function toggleActive(c: TaskCategory, val: boolean) {
   }
 }
 
+function confirmHardDelete(c: TaskCategory) {
+  dialog.error({
+    title: '永久刪除任務類別',
+    content: `將永久刪除「${c.name}」；使用此類別的任務會改為未分類，且無法復原。確定繼續？`,
+    positiveText: '永久刪除',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        await masterStore.hardDeleteCategory(c.id)
+        message.success('任務類別已永久刪除')
+      } catch (e) {
+        message.error(e instanceof Error ? e.message : '永久刪除失敗')
+      }
+    },
+  })
+}
+
 onMounted(async () => {
   loading.value = true
   try {
-    await masterStore.loadAll(true)
+    await masterStore.loadAll(true, true)
   } finally {
     loading.value = false
   }
@@ -103,12 +125,18 @@ onMounted(async () => {
         <n-card v-for="c in masterStore.taskCategories" :key="c.id" size="small">
           <div class="row-main">
             <div class="info">
-              <div class="name">{{ c.name }}</div>
+              <div class="name">
+                {{ c.name }}
+                <n-tag v-if="!c.active" size="tiny" type="error" round>已停用</n-tag>
+              </div>
               <div class="muted">{{ c.description || '' }}</div>
             </div>
             <div class="actions">
               <n-switch size="small" :value="c.active" @update:value="(v: boolean) => toggleActive(c, v)" />
               <n-button size="tiny" quaternary @click="openEdit(c)">編輯</n-button>
+              <n-button v-if="management.unlocked" size="tiny" quaternary type="error" @click="confirmHardDelete(c)">
+                永久刪除
+              </n-button>
             </div>
           </div>
         </n-card>

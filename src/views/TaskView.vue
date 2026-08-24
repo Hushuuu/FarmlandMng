@@ -17,7 +17,13 @@ import {
   useDialog,
   useMessage,
 } from 'naive-ui'
-import { assignmentService, getTargetNameMap, taskCrudService } from '../services/taskService'
+import {
+  assignmentService,
+  getTargetNameMap,
+  hardDeleteAssignment,
+  hardDeleteTask,
+  taskCrudService,
+} from '../services/taskService'
 import { areaService, orchardService } from '../services/orchardService'
 import { treeService } from '../services/treeService'
 import type {
@@ -33,10 +39,12 @@ import { RECURRENCE_UNIT_OPTIONS, TARGET_TYPE_LABEL, recurrenceText } from '../c
 import { formatDate } from '../utils/date'
 import { genCode } from '../utils/code'
 import { useMasterStore } from '../stores/tree'
+import { useManagementStore } from '../stores/management'
 
 const message = useMessage()
 const dialog = useDialog()
 const masterStore = useMasterStore()
+const management = useManagementStore()
 
 const loading = ref(true)
 const tasks = ref<(Task & { assignments: TaskAssignment[] })[]>([])
@@ -107,6 +115,24 @@ function confirmDeleteTask(t: Task) {
   })
 }
 
+function confirmHardDeleteTask(t: Task) {
+  dialog.error({
+    title: '永久刪除任務',
+    content: `將永久刪除「${t.name}」及其所有排程、執行批次與歷史明細，且無法復原。確定繼續？`,
+    positiveText: '永久刪除',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        await hardDeleteTask(t.id)
+        message.success('任務及相關資料已永久刪除')
+        await reload()
+      } catch (e) {
+        message.error(e instanceof Error ? e.message : '永久刪除失敗')
+      }
+    },
+  })
+}
+
 async function toggleTaskActive(t: Task, v: boolean) {
   await taskCrudService.update(t.id, { active: v })
   t.active = v
@@ -129,6 +155,7 @@ const assignForm = ref({
   area_id: null as string | null,
   tree_id: null as string | null,
   start_date: Date.now() as number,
+  next_start_date: null as number | null,
   has_recurrence: true,
   recurrence_value: 30,
   recurrence_unit: 'DAY' as RecurrenceUnit,
@@ -164,6 +191,7 @@ function openAssignCreate(task: Task & { assignments: TaskAssignment[] }) {
     area_id: null,
     tree_id: null,
     start_date: Date.now(),
+    next_start_date: null,
     has_recurrence: true,
     recurrence_value: 30,
     recurrence_unit: 'DAY',
@@ -199,6 +227,7 @@ async function openAssignEdit(a: TaskAssignment) {
     area_id: areaId,
     tree_id: a.target_type === 'TREE' ? a.target_id : null,
     start_date: new Date(`${a.start_date}T00:00:00`).getTime(),
+    next_start_date: a.next_start_date ? new Date(`${a.next_start_date}T00:00:00`).getTime() : null,
     has_recurrence: !!a.recurrence_value && !!a.recurrence_unit,
     recurrence_value: a.recurrence_value ?? 30,
     recurrence_unit: a.recurrence_unit ?? 'DAY',
@@ -226,11 +255,15 @@ async function saveAssign() {
     return
   }
   const d = new Date(f.start_date)
+  const nextDate = f.next_start_date ? new Date(f.next_start_date) : null
   const payload = {
     task_id: assignTaskId.value!,
     target_type: f.target_type,
     target_id: targetId,
     start_date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+    next_start_date: nextDate
+      ? `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}-${String(nextDate.getDate()).padStart(2, '0')}`
+      : null,
     recurrence_value: f.has_recurrence ? f.recurrence_value : null,
     recurrence_unit: f.has_recurrence ? f.recurrence_unit : null,
     note: f.note || null,
@@ -264,6 +297,24 @@ async function confirmDeleteAssign(a: TaskAssignment) {
       await assignmentService.softDelete(a.id)
       message.success('已停用')
       await reload()
+    },
+  })
+}
+
+function confirmHardDeleteAssign(a: TaskAssignment, taskName: string) {
+  dialog.error({
+    title: '永久刪除排程',
+    content: `將永久刪除「${taskName}」的此筆排程、執行批次與歷史明細，且無法復原。確定繼續？`,
+    positiveText: '永久刪除',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        await hardDeleteAssignment(a.id)
+        message.success('排程及相關資料已永久刪除')
+        await reload()
+      } catch (e) {
+        message.error(e instanceof Error ? e.message : '永久刪除失敗')
+      }
     },
   })
 }
@@ -322,12 +373,22 @@ onMounted(async () => {
                     </n-tag>
                     <b>{{ targetNames.get(a.id) ?? '…' }}</b>
                     <span class="muted">　{{ recurrenceText(a.recurrence_value, a.recurrence_unit) }}　起始 {{ formatDate(a.start_date) }}</span>
+                    <span v-if="a.next_start_date" class="muted">　下一輪 {{ formatDate(a.next_start_date) }}</span>
                     <n-tag v-if="!a.active" size="tiny" type="error" round>已停用</n-tag>
                   </div>
                   <div class="row-actions">
                     <n-switch size="small" :value="a.active" @update:value="(v: boolean) => toggleAssignActive(a, v)" />
                     <n-button size="tiny" quaternary @click="openAssignEdit(a)">編輯</n-button>
-                    <n-button size="tiny" quaternary type="error" @click="confirmDeleteAssign(a)">刪除</n-button>
+                    <n-button v-if="a.active" size="tiny" quaternary type="error" @click="confirmDeleteAssign(a)">停用</n-button>
+                    <n-button
+                      v-if="management.unlocked"
+                      size="tiny"
+                      quaternary
+                      type="error"
+                      @click="confirmHardDeleteAssign(a, t.name)"
+                    >
+                      永久刪除
+                    </n-button>
                   </div>
                 </div>
                 <div v-if="!t.assignments.length" class="muted assign-empty">
@@ -338,7 +399,16 @@ onMounted(async () => {
             <div class="row-actions top">
               <n-switch size="small" :value="t.active" @update:value="(v: boolean) => toggleTaskActive(t, v)" />
               <n-button size="tiny" quaternary @click="openTaskEdit(t)">編輯</n-button>
-              <n-button size="tiny" quaternary type="error" @click="confirmDeleteTask(t)">停用</n-button>
+              <n-button v-if="t.active" size="tiny" quaternary type="error" @click="confirmDeleteTask(t)">停用</n-button>
+              <n-button
+                v-if="management.unlocked"
+                size="tiny"
+                quaternary
+                type="error"
+                @click="confirmHardDeleteTask(t)"
+              >
+                永久刪除
+              </n-button>
             </div>
           </div>
 
@@ -407,6 +477,10 @@ onMounted(async () => {
 
         <n-form-item label="開始日期" required>
           <n-date-picker v-model:value="assignForm.start_date" type="date" style="width: 100%" />
+        </n-form-item>
+        <n-form-item label="下一輪預計開始日">
+          <n-date-picker v-model:value="assignForm.next_start_date" type="date" clearable style="width: 100%" />
+          <div class="muted">完成本輪後會自動依週期帶入，也可以在待執行任務中調整。</div>
         </n-form-item>
 
         <n-form-item label="重複週期">

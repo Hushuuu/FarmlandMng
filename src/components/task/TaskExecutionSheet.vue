@@ -21,7 +21,7 @@ const store = useTaskStore()
 const message = useMessage()
 const dialog = useDialog()
 
-const show = computed(() => !!store.activeBatch)
+const show = computed(() => !!store.activeBatch && store.executionSheetOpen)
 
 const total = computed(() => store.activeItems.length)
 const doneCount = computed(
@@ -127,7 +127,14 @@ function confirmCompleteAll() {
     content: `將剩餘 ${pendingCount.value} 項全部標記為完成？`,
     positiveText: '確定',
     negativeText: '取消',
-    onPositiveClick: () => store.completeAll(),
+    onPositiveClick: async () => {
+      try {
+        await store.completeAll()
+        message.success('剩餘項目已全部完成')
+      } catch (e) {
+        message.error(e instanceof Error ? e.message : '更新失敗')
+      }
+    },
   })
 }
 
@@ -144,30 +151,51 @@ function confirmFinish() {
     positiveText: '確定完成',
     negativeText: '繼續執行',
     onPositiveClick: async () => {
-      await store.finishExecution()
-      message.success('本輪任務已完成，下次執行日期已更新')
+      try {
+        await store.finishExecution()
+        message.success('本輪任務已完成，下次執行日期已更新')
+      } catch (e) {
+        message.error(e instanceof Error ? e.message : '完成任務失敗')
+      }
     },
   })
 }
 
-function confirmCancel() {
+function confirmReset() {
   dialog.warning({
-    title: '取消執行',
-    content: '取消後本輪紀錄將標記為「已取消」，不會計入週期。確定取消？',
-    positiveText: '取消任務',
+    title: '重置本輪',
+    content: '重置後本輪進度會清除並重新回到待執行，不會計入週期。確定重置？',
+    positiveText: '重置本輪',
     negativeText: '返回',
-    onPositiveClick: () => store.cancelExecution(),
+    onPositiveClick: async () => {
+      try {
+        await store.resetExecution()
+        message.success('本輪已重置')
+      } catch (e) {
+        message.error(e instanceof Error ? e.message : '重置失敗')
+      }
+    },
   })
+}
+
+function closeSheet() {
+  store.closeExecutionSheet()
 }
 </script>
 
 <template>
-  <n-drawer :show="show" placement="bottom" height="88%" :auto-focus="false" @update:show="store.clearExecution()">
-    <n-drawer-content body-content-style="padding:0">
+  <n-drawer
+    :show="show"
+    placement="bottom"
+    height="88%"
+    :auto-focus="false"
+    @update:show="(value: boolean) => { if (!value) closeSheet() }"
+  >
+    <n-drawer-content body-content-style="padding:0" closable @close="closeSheet">
       <template #header>
         <div class="sheet-header">
           <div class="title">執行任務</div>
-          <div class="muted">點項目切換完成；「⋯」可略過／失敗／範圍批次</div>
+          <div class="muted">點項目切換完成；關閉只收起資訊卡，不會重置進度</div>
         </div>
       </template>
 
@@ -190,7 +218,8 @@ function confirmCancel() {
               <n-button size="small" secondary :disabled="pendingCount === 0" @click="confirmCompleteAll">
                 全部完成
               </n-button>
-              <n-button size="small" secondary type="error" @click="confirmCancel">取消</n-button>
+              <n-button size="small" secondary type="warning" @click="confirmReset">重置本輪</n-button>
+              <n-button size="small" secondary @click="closeSheet">關閉</n-button>
               <n-button size="small" type="primary" @click="confirmFinish">完成本輪</n-button>
             </div>
           </div>

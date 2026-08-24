@@ -3,6 +3,8 @@ import {
   assignmentService,
   cancelBatch,
   completeAllItems,
+  hardDeleteAssignment,
+  hardDeleteTask,
   finishBatch,
   getBatchWithItems,
   getPendingTasks,
@@ -22,6 +24,7 @@ export const useTaskStore = defineStore('task', {
 
     activeBatch: null as ExecutionBatch | null,
     activeItems: [] as (ExecutionItem & { tree: import('../types/database').Tree | null })[],
+    executionSheetOpen: false,
     history: [] as BatchSummary[],
 
     executing: false,
@@ -90,6 +93,16 @@ export const useTaskStore = defineStore('task', {
       await this.loadTasks()
     },
 
+    async hardDeleteAssignment(id: string) {
+      await hardDeleteAssignment(id)
+      await this.loadTasks()
+    },
+
+    async hardDeleteTask(id: string) {
+      await hardDeleteTask(id)
+      await this.loadTasks()
+    },
+
     // --------------------------------------------------
     // 待執行任務
     // --------------------------------------------------
@@ -113,6 +126,7 @@ export const useTaskStore = defineStore('task', {
         const { items } = await getBatchWithItems(batch.id)
         this.activeBatch = batch
         this.activeItems = items
+        this.executionSheetOpen = true
       } finally {
         this.executing = false
       }
@@ -124,6 +138,7 @@ export const useTaskStore = defineStore('task', {
         const { batch, items } = await getBatchWithItems(batchId)
         this.activeBatch = batch
         this.activeItems = items
+        this.executionSheetOpen = true
       } finally {
         this.executing = false
       }
@@ -154,14 +169,16 @@ export const useTaskStore = defineStore('task', {
       await finishBatch(this.activeBatch.id)
       this.activeBatch = null
       this.activeItems = []
+      this.executionSheetOpen = false
       await this.loadPending()
     },
 
-    async cancelExecution() {
+    async resetExecution() {
       if (!this.activeBatch) return
       await cancelBatch(this.activeBatch.id)
       this.activeBatch = null
       this.activeItems = []
+      this.executionSheetOpen = false
       await this.loadPending()
     },
 
@@ -170,9 +187,14 @@ export const useTaskStore = defineStore('task', {
       this.history = await listBatchSummaries()
     },
 
+    closeExecutionSheet() {
+      this.executionSheetOpen = false
+    },
+
     clearExecution() {
       this.activeBatch = null
       this.activeItems = []
+      this.executionSheetOpen = false
     },
   },
 })

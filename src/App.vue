@@ -26,9 +26,11 @@ import {
   CategoryOutlined,
 } from '@vicons/material'
 import { useAuthStore } from './stores/auth'
+import { useManagementStore } from './stores/management'
 import TaskExecutionSheet from './components/task/TaskExecutionSheet.vue'
 
 const auth = useAuthStore()
+const management = useManagementStore()
 const route = useRoute()
 const router = useRouter()
 const showMenu = ref(false)
@@ -94,6 +96,7 @@ function isActive(to: string): boolean {
 
 async function handleLogout() {
   showMenu.value = false
+  management.lock()
   await auth.signOut()
   router.replace({ name: 'login' })
 }

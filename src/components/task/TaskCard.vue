@@ -9,9 +9,10 @@ import DueStatusTag from './DueStatusTag.vue'
 const props = defineProps<{
   info: PendingTaskInfo
   loading?: boolean
+  allowReschedule?: boolean
 }>()
 
-const emit = defineEmits<{ execute: [] }>()
+const emit = defineEmits<{ execute: []; reschedule: [] }>()
 
 const running = computed(() => !!props.info.runningBatchId)
 </script>
@@ -42,8 +43,9 @@ const running = computed(() => !!props.info.runningBatchId)
     </div>
 
     <div class="card-action">
+      <n-button v-if="allowReschedule" size="small" quaternary @click="emit('reschedule')">調整預計日</n-button>
       <n-button type="primary" :loading="loading" @click="emit('execute')">
-        {{ running ? '繼續執行' : '開始執行' }}
+        {{ running ? '繼續執行' : '執行任務' }}
       </n-button>
     </div>
   </n-card>

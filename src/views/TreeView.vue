@@ -22,11 +22,13 @@ import type { Area, Orchard, Tree, TreeStatus } from '../types/database'
 import { TREE_STATUS_META } from '../constants/status'
 import { formatDate } from '../utils/date'
 import { useMasterStore } from '../stores/tree'
+import { useManagementStore } from '../stores/management'
 
 const router = useRouter()
 const message = useMessage()
 const dialog = useDialog()
 const masterStore = useMasterStore()
+const management = useManagementStore()
 
 interface Row extends Tree {
   area: Pick<Area, 'id' | 'name' | 'code' | 'orchard_id'> | null
@@ -123,6 +125,24 @@ function confirmDelete(r: Row) {
   })
 }
 
+function confirmHardDelete(r: Row) {
+  dialog.error({
+    title: '永久刪除果樹',
+    content: `將永久刪除「${r.name || r.code}」及這棵樹的任務排程與執行歷史，且無法復原。確定繼續？`,
+    positiveText: '永久刪除',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        await treeService.hardDelete(r.id)
+        message.success('果樹及相關資料已永久刪除')
+        await reload()
+      } catch (e) {
+        message.error(e instanceof Error ? e.message : '永久刪除失敗')
+      }
+    },
+  })
+}
+
 async function reload() {
   rows.value = await treeService.listWithLocation(true)
 }
@@ -181,6 +201,15 @@ onMounted(async () => {
               </n-button>
               <n-button size="tiny" quaternary @click="openEdit(r)">編輯</n-button>
               <n-button v-if="r.active" size="tiny" quaternary type="error" @click="confirmDelete(r)">停用</n-button>
+              <n-button
+                v-if="management.unlocked"
+                size="tiny"
+                quaternary
+                type="error"
+                @click="confirmHardDelete(r)"
+              >
+                永久刪除
+              </n-button>
             </div>
           </div>
         </n-card>

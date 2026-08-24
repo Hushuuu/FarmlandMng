@@ -21,6 +21,7 @@ import MapControls from '../components/orchard/MapControls.vue'
 import MapToolbar from '../components/orchard/MapToolbar.vue'
 import TreeMarker from '../components/orchard/TreeMarker.vue'
 import QuickAssignModal from '../components/task/QuickAssignModal.vue'
+import TaskRescheduleModal from '../components/task/TaskRescheduleModal.vue'
 import DueStatusTag from '../components/task/DueStatusTag.vue'
 import { areaService, orchardService } from '../services/orchardService'
 import { getPendingTasks } from '../services/taskService'
@@ -30,6 +31,7 @@ import { formatDate } from '../utils/date'
 import { genCode } from '../utils/code'
 import { useTreeStore, useMasterStore } from '../stores/tree'
 import { useTaskStore } from '../stores/task'
+import { useManagementStore } from '../stores/management'
 
 const route = useRoute()
 const router = useRouter()
@@ -40,6 +42,7 @@ const areaId = route.params.areaId as string
 const treeStore = useTreeStore()
 const masterStore = useMasterStore()
 const taskStore = useTaskStore()
+const management = useManagementStore()
 
 const canvasRef = ref<InstanceType<typeof MapCanvas> | null>(null)
 const scale = ref(1)
@@ -66,6 +69,8 @@ function openQuickAssign() {
 // 此樹相關任務（單樹 + 所屬區域 + 所屬果園）
 const relatedTasks = ref<PendingTaskInfo[]>([])
 const executingId = ref<string | null>(null)
+const showReschedule = ref(false)
+const rescheduleInfo = ref<PendingTaskInfo | null>(null)
 
 async function loadRelatedTasks() {
   if (!selected.value) return
@@ -96,6 +101,11 @@ async function execTask(p: PendingTaskInfo) {
   } finally {
     executingId.value = null
   }
+}
+
+function openReschedule(p: PendingTaskInfo) {
+  rescheduleInfo.value = p
+  showReschedule.value = true
 }
 
 function select(id: string | null) {
@@ -217,6 +227,26 @@ function confirmDeleteSelected() {
   })
 }
 
+function confirmHardDeleteSelected() {
+  const target = selected.value
+  if (!target) return
+  dialog.error({
+    title: '永久刪除果樹',
+    content: `將永久刪除「${target.name || target.code}」及其任務排程與執行歷史，且無法復原。確定繼續？`,
+    positiveText: '永久刪除',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        await treeStore.hardDeleteTree(target.id)
+        select(null)
+        message.success('果樹及相關資料已永久刪除')
+      } catch (e) {
+        message.error(e instanceof Error ? e.message : '永久刪除失敗')
+      }
+    },
+  })
+}
+
 function typeName(id: string | null): string {
   if (!id) return '未設定'
   return masterStore.treeTypeName(id) ?? '未設定'
@@ -297,6 +327,16 @@ function goBack() {
         <n-button size="small" secondary type="error" :disabled="!selected" @click="confirmDeleteSelected">
           刪除
         </n-button>
+        <n-button
+          v-if="management.unlocked"
+          size="small"
+          secondary
+          type="error"
+          :disabled="!selected"
+          @click="confirmHardDeleteSelected"
+        >
+          永久刪除
+        </n-button>
       </template>
     </map-toolbar>
 
@@ -352,13 +392,14 @@ function goBack() {
             <span class="rt-name">{{ p.task.name }}</span>
             <span class="muted">{{ formatDate(p.dueDate) }}</span>
             <due-status-tag :status="p.dueStatus" />
+            <n-button size="tiny" quaternary @click="openReschedule(p)">調整日期</n-button>
             <n-button
               size="tiny"
               type="primary"
               :loading="executingId === p.assignment.id"
               @click="execTask(p)"
             >
-              {{ p.runningBatchId ? '繼續執行' : '開始執行' }}
+              {{ p.runningBatchId ? '繼續執行' : '執行任務' }}
             </n-button>
           </div>
         </div>
@@ -369,6 +410,12 @@ function goBack() {
         </div>
       </n-drawer-content>
     </n-drawer>
+
+    <task-reschedule-modal
+      v-model:show="showReschedule"
+      :info="rescheduleInfo"
+      @saved="loadRelatedTasks"
+    />
 
     <quick-assign-modal
       v-model:show="quickAssignShow"

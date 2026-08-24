@@ -1,5 +1,7 @@
 import { supabase } from '../lib/supabase'
 import type { Area, Orchard, SystemSetting } from '../types/database'
+import { deleteExecutionData, listAssignmentIdsByTarget } from './hardDeleteService'
+import { managementService } from './managementService'
 
 export const orchardService = {
   async list(includeInactive = false): Promise<Orchard[]> {
@@ -30,6 +32,50 @@ export const orchardService = {
   /** 軟刪除（§60） */
   async softDelete(id: string): Promise<void> {
     await this.update(id, { active: false })
+  },
+
+  /** 管理模式專用：永久刪除果園、底下區域/果樹與相關任務紀錄。 */
+  async hardDelete(id: string): Promise<void> {
+    managementService.assertUnlocked()
+    const { data: areaRows, error: areaError } = await supabase
+      .from('areas')
+      .select('id')
+      .eq('orchard_id', id)
+    if (areaError) throw areaError
+    const areaIds = (areaRows ?? []).map((row) => row.id)
+
+    let treeIds: string[] = []
+    if (areaIds.length) {
+      const { data: treeRows, error: treeError } = await supabase
+        .from('trees')
+        .select('id')
+        .in('area_id', areaIds)
+      if (treeError) throw treeError
+      treeIds = (treeRows ?? []).map((row) => row.id)
+    }
+
+    const [orchardAssignmentIds, areaAssignmentIds, treeAssignmentIds] = await Promise.all([
+      listAssignmentIdsByTarget('ORCHARD', [id]),
+      listAssignmentIdsByTarget('AREA', areaIds),
+      listAssignmentIdsByTarget('TREE', treeIds),
+    ])
+    const assignmentIds = [...new Set([...orchardAssignmentIds, ...areaAssignmentIds, ...treeAssignmentIds])]
+    await deleteExecutionData(assignmentIds, treeIds)
+
+    if (assignmentIds.length) {
+      const { error } = await supabase.from('task_assignments').delete().in('id', assignmentIds)
+      if (error) throw error
+    }
+    if (treeIds.length) {
+      const { error } = await supabase.from('trees').delete().in('id', treeIds)
+      if (error) throw error
+    }
+    if (areaIds.length) {
+      const { error } = await supabase.from('areas').delete().in('id', areaIds)
+      if (error) throw error
+    }
+    const { error } = await supabase.from('orchards').delete().eq('id', id)
+    if (error) throw error
   },
 }
 
@@ -79,6 +125,35 @@ export const areaService = {
 
   async softDelete(id: string): Promise<void> {
     await this.update(id, { active: false })
+  },
+
+  /** 管理模式專用：永久刪除區域、底下果樹與相關任務紀錄。 */
+  async hardDelete(id: string): Promise<void> {
+    managementService.assertUnlocked()
+    const { data: treeRows, error: treeError } = await supabase
+      .from('trees')
+      .select('id')
+      .eq('area_id', id)
+    if (treeError) throw treeError
+    const treeIds = (treeRows ?? []).map((row) => row.id)
+
+    const [areaAssignmentIds, treeAssignmentIds] = await Promise.all([
+      listAssignmentIdsByTarget('AREA', [id]),
+      listAssignmentIdsByTarget('TREE', treeIds),
+    ])
+    const assignmentIds = [...new Set([...areaAssignmentIds, ...treeAssignmentIds])]
+    await deleteExecutionData(assignmentIds, treeIds)
+
+    if (assignmentIds.length) {
+      const { error } = await supabase.from('task_assignments').delete().in('id', assignmentIds)
+      if (error) throw error
+    }
+    if (treeIds.length) {
+      const { error } = await supabase.from('trees').delete().in('id', treeIds)
+      if (error) throw error
+    }
+    const { error } = await supabase.from('areas').delete().eq('id', id)
+    if (error) throw error
   },
 }
 

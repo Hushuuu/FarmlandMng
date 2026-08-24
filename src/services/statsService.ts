@@ -53,4 +53,27 @@ export const statsService = {
       return { orchard: o, areaCount: orchardAreas.length, treeCount }
     })
   },
+
+  /** 每個有效區域的果樹數，供 Dashboard 果園明細使用。 */
+  async areaStats(): Promise<AreaStats[]> {
+    const [{ data: areas, error: ae }, { data: trees, error: te }] = await Promise.all([
+      supabase.from('areas').select('*').eq('active', true).order('orchard_id').order('code'),
+      supabase.from('trees').select('area_id, active'),
+    ])
+    if (ae) throw ae
+    if (te) throw te
+
+    const treeCountByArea = new Map<string, number>()
+    for (const tree of (trees ?? []) as Pick<Tree, 'area_id' | 'active'>[]) {
+      if (!tree.active) continue
+      treeCountByArea.set(tree.area_id, (treeCountByArea.get(tree.area_id) ?? 0) + 1)
+    }
+
+    return ((areas ?? []) as Area[]).map((area) => ({
+      area,
+      treeCount: treeCountByArea.get(area.id) ?? 0,
+      pendingCount: 0,
+      overdueCount: 0,
+    }))
+  },
 }

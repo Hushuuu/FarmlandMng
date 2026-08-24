@@ -12,14 +12,19 @@ import {
   NModal,
   NSpin,
   NSwitch,
+  NTag,
+  useDialog,
   useMessage,
 } from 'naive-ui'
 import { useMasterStore } from '../stores/tree'
 import { genCode } from '../utils/code'
 import type { TreeType } from '../types/database'
+import { useManagementStore } from '../stores/management'
 
 const masterStore = useMasterStore()
 const message = useMessage()
+const dialog = useDialog()
+const management = useManagementStore()
 
 const loading = ref(false)
 const showForm = ref(false)
@@ -85,10 +90,27 @@ async function toggleActive(t: TreeType, val: boolean) {
   }
 }
 
+function confirmHardDelete(t: TreeType) {
+  dialog.error({
+    title: '永久刪除果樹類型',
+    content: `將永久刪除「${t.name}」；既有果樹會改為未設定類型，且無法復原。確定繼續？`,
+    positiveText: '永久刪除',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        await masterStore.hardDeleteTreeType(t.id)
+        message.success('果樹類型已永久刪除')
+      } catch (e) {
+        message.error(e instanceof Error ? e.message : '永久刪除失敗')
+      }
+    },
+  })
+}
+
 onMounted(async () => {
   loading.value = true
   try {
-    await masterStore.loadAll(true)
+    await masterStore.loadAll(true, true)
   } finally {
     loading.value = false
   }
@@ -111,12 +133,18 @@ onMounted(async () => {
               {{ t.icon }}
             </div>
             <div class="info">
-              <div class="name">{{ t.name }}</div>
+              <div class="name">
+                {{ t.name }}
+                <n-tag v-if="!t.active" size="tiny" type="error" round>已停用</n-tag>
+              </div>
               <div class="muted">{{ t.description || '' }}</div>
             </div>
             <div class="actions">
               <n-switch size="small" :value="t.active" @update:value="(v: boolean) => toggleActive(t, v)" />
               <n-button size="tiny" quaternary @click="openEdit(t)">編輯</n-button>
+              <n-button v-if="management.unlocked" size="tiny" quaternary type="error" @click="confirmHardDelete(t)">
+                永久刪除
+              </n-button>
             </div>
           </div>
         </n-card>

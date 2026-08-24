@@ -14,7 +14,9 @@ import type {
   TaskCategory,
   Tree,
 } from '../types/database'
-import { addInterval, computeDueStatus, todayStr } from '../utils/date'
+import { addInterval, computeDueStatus, todayStr, toDateStr } from '../utils/date'
+import { deleteExecutionData } from './hardDeleteService'
+import { managementService } from './managementService'
 import { settingsService } from './orchardService'
 
 // ------------------------------------------------------------
@@ -260,20 +262,38 @@ type ARowLike = TaskAssignment & {
   task: (Task & { category: Pick<TaskCategory, 'name'> | null }) | null
 }
 
-/** 計算下一次到期日（§63：以實際完成日期起算） */
+/** 計算下一次到期日（§63：以實際完成日期起算，且可由使用者調整） */
+function completedDateOf(batch: Pick<ExecutionBatch, 'scheduled_date' | 'completed_at'>): string {
+  if (batch.completed_at) {
+    const completedAt = new Date(batch.completed_at)
+    if (!Number.isNaN(completedAt.getTime())) return toDateStr(completedAt)
+  }
+  return batch.scheduled_date
+}
+
 function computeNextDue(
   assignment: TaskAssignment,
   completedDates: string[],
 ): string | null {
   const hasRecurrence = !!assignment.recurrence_value && !!assignment.recurrence_unit
+  const latestCompleted = completedDates.length
+    ? completedDates.reduce((a, b) => (a > b ? a : b))
+    : null
   if (!hasRecurrence) {
-    return completedDates.length ? null : assignment.start_date
+    return completedDates.length ? null : assignment.next_start_date ?? assignment.start_date
   }
-  const base =
-    completedDates.length > 0
-      ? completedDates.reduce((a, b) => (a > b ? a : b))
-      : assignment.start_date
-  return addInterval(base, assignment.recurrence_value!, assignment.recurrence_unit!)
+
+  const naturalNext = latestCompleted
+    ? addInterval(latestCompleted, assignment.recurrence_value!, assignment.recurrence_unit!)
+    : assignment.start_date
+  const requestedNext = assignment.next_start_date ?? naturalNext
+
+  // 結算日當天不能再次執行，即使舊資料或手動調整日期仍指向今天。
+  if (latestCompleted) {
+    const earliestNext = addInterval(latestCompleted, 1, 'DAY')
+    return requestedNext > earliestNext ? requestedNext : earliestNext
+  }
+  return requestedNext
 }
 
 // ------------------------------------------------------------
@@ -318,7 +338,7 @@ export async function getPendingTasks(filter?: {
     const myBatches = allBatches.filter((b) => b.task_assignment_id === a.id)
     const completedDates = myBatches
       .filter((b) => b.status === 'COMPLETED')
-      .map((b) => b.scheduled_date)
+      .map((b) => completedDateOf(b))
     const running = myBatches.find((b) => b.status === 'IN_PROGRESS') ?? null
 
     // 有進行中的批次時，以該批次 scheduled_date 為目前到期日
@@ -386,15 +406,31 @@ export async function startExecution(assignmentId: string): Promise<ExecutionBat
     .single()
   if (ae) throw ae
   const assignment = a as TaskAssignment
+  if (!assignment.active) throw new Error('此任務排程已停用，無法開始執行')
 
   // 若已有進行中批次，直接續用
-  const { data: existing } = await supabase
+  const { data: existing, error: existingError } = await supabase
     .from('task_execution_batches')
     .select('*')
     .eq('task_assignment_id', assignment.id)
     .eq('status', 'IN_PROGRESS')
     .maybeSingle()
+  if (existingError) throw existingError
   if (existing) return existing as ExecutionBatch
+
+  const { data: latestCompleted, error: latestError } = await supabase
+    .from('task_execution_batches')
+    .select('scheduled_date, completed_at')
+    .eq('task_assignment_id', assignment.id)
+    .eq('status', 'COMPLETED')
+    .order('completed_at', { ascending: false, nullsFirst: false })
+    .order('scheduled_date', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (latestError) throw latestError
+  if (latestCompleted && completedDateOf(latestCompleted) === todayStr()) {
+    throw new Error('本任務今天已結算，下一輪最早明天才能執行')
+  }
 
   const trees = await resolveTargetTrees(assignment.target_type, assignment.target_id)
   if (!trees.length) throw new Error('此任務對象目前沒有有效果樹，無法開始執行')
@@ -470,11 +506,39 @@ export async function completeAllItems(batchId: string): Promise<void> {
 }
 
 export async function finishBatch(batchId: string): Promise<void> {
+  const { data: batch, error: batchError } = await supabase
+    .from('task_execution_batches')
+    .select('id, task_assignment_id, scheduled_date, status')
+    .eq('id', batchId)
+    .single()
+  if (batchError) throw batchError
+
+  const { data: assignment, error: assignmentError } = await supabase
+    .from('task_assignments')
+    .select('id, recurrence_value, recurrence_unit')
+    .eq('id', batch.task_assignment_id)
+    .single()
+  if (assignmentError) throw assignmentError
+
+  const completionDate = todayStr()
+  const nextStartDate =
+    assignment.recurrence_value && assignment.recurrence_unit
+      ? addInterval(completionDate, assignment.recurrence_value, assignment.recurrence_unit) > completionDate
+        ? addInterval(completionDate, assignment.recurrence_value, assignment.recurrence_unit)
+        : addInterval(completionDate, 1, 'DAY')
+      : null
+
   const { error } = await supabase
     .from('task_execution_batches')
     .update({ status: 'COMPLETED', completed_at: new Date().toISOString() })
     .eq('id', batchId)
   if (error) throw error
+
+  const { error: nextDateError } = await supabase
+    .from('task_assignments')
+    .update({ next_start_date: nextStartDate })
+    .eq('id', batch.task_assignment_id)
+  if (nextDateError) throw nextDateError
 }
 
 export async function cancelBatch(batchId: string): Promise<void> {
@@ -482,6 +546,130 @@ export async function cancelBatch(batchId: string): Promise<void> {
     .from('task_execution_batches')
     .update({ status: 'CANCELLED' })
     .eq('id', batchId)
+  if (error) throw error
+}
+
+/** 撤銷結算，保留逐樹進度並恢復為可繼續執行。 */
+export async function cancelSettlement(batchId: string): Promise<void> {
+  const { data: batch, error: batchError } = await supabase
+    .from('task_execution_batches')
+    .select('id, task_assignment_id, scheduled_date, completed_at, status')
+    .eq('id', batchId)
+    .single()
+  if (batchError) throw batchError
+  if (batch.status !== 'COMPLETED') throw new Error('只有已完成的批次可以取消結算')
+
+  const { data: latestBatch, error: latestError } = await supabase
+    .from('task_execution_batches')
+    .select('id')
+    .eq('task_assignment_id', batch.task_assignment_id)
+    .eq('status', 'COMPLETED')
+    .order('completed_at', { ascending: false, nullsFirst: false })
+    .order('scheduled_date', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (latestError) throw latestError
+  if (latestBatch?.id !== batchId) throw new Error('只能取消最近一次結算')
+
+  const { error } = await supabase
+    .from('task_execution_batches')
+    .update({ status: 'IN_PROGRESS', completed_at: null })
+    .eq('id', batchId)
+    .eq('status', 'COMPLETED')
+  if (error) throw error
+
+  const { error: assignmentError } = await supabase
+    .from('task_assignments')
+    .update({ next_start_date: null })
+    .eq('id', batch.task_assignment_id)
+  if (assignmentError) throw assignmentError
+}
+
+/** 管理模式專用：永久刪除單一執行批次及其逐樹明細。 */
+export async function hardDeleteBatch(batchId: string): Promise<void> {
+  managementService.assertUnlocked()
+  const { data: batch, error: batchError } = await supabase
+    .from('task_execution_batches')
+    .select('id, task_assignment_id, scheduled_date, completed_at, status')
+    .eq('id', batchId)
+    .maybeSingle()
+  if (batchError) throw batchError
+  if (!batch) throw new Error('找不到執行批次')
+
+  let resetNextDate = false
+  if (batch.status === 'COMPLETED') {
+    const { data: latestBatch, error: latestError } = await supabase
+      .from('task_execution_batches')
+      .select('id')
+      .eq('task_assignment_id', batch.task_assignment_id)
+      .eq('status', 'COMPLETED')
+      .order('completed_at', { ascending: false, nullsFirst: false })
+      .order('scheduled_date', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (latestError) throw latestError
+    resetNextDate = latestBatch?.id === batchId
+  }
+
+  const { error: itemError } = await supabase
+    .from('task_execution_items')
+    .delete()
+    .eq('execution_batch_id', batchId)
+  if (itemError) throw itemError
+  const { error } = await supabase
+    .from('task_execution_batches')
+    .delete()
+    .eq('id', batchId)
+  if (error) throw error
+
+  if (resetNextDate) {
+    const { error: assignmentError } = await supabase
+      .from('task_assignments')
+      .update({ next_start_date: null })
+      .eq('id', batch.task_assignment_id)
+    if (assignmentError) throw assignmentError
+  }
+}
+
+/** 管理模式專用：永久刪除任務排程及其所有執行紀錄。 */
+export async function hardDeleteAssignment(assignmentId: string): Promise<void> {
+  managementService.assertUnlocked()
+  const { data: assignment, error: assignmentError } = await supabase
+    .from('task_assignments')
+    .select('id')
+    .eq('id', assignmentId)
+    .maybeSingle()
+  if (assignmentError) throw assignmentError
+  if (!assignment) throw new Error('找不到任務排程')
+
+  await deleteExecutionData([assignmentId], [])
+  const { error } = await supabase.from('task_assignments').delete().eq('id', assignmentId)
+  if (error) throw error
+}
+
+/** 管理模式專用：永久刪除任務設定、排程與所有執行紀錄。 */
+export async function hardDeleteTask(taskId: string): Promise<void> {
+  managementService.assertUnlocked()
+  const { data: task, error: taskError } = await supabase
+    .from('tasks')
+    .select('id')
+    .eq('id', taskId)
+    .maybeSingle()
+  if (taskError) throw taskError
+  if (!task) throw new Error('找不到任務')
+
+  const { data: assignments, error: assignmentError } = await supabase
+    .from('task_assignments')
+    .select('id')
+    .eq('task_id', taskId)
+  if (assignmentError) throw assignmentError
+  const assignmentIds = (assignments ?? []).map((row) => row.id)
+  await deleteExecutionData(assignmentIds, [])
+  if (assignmentIds.length) {
+    const { error } = await supabase.from('task_assignments').delete().in('id', assignmentIds)
+    if (error) throw error
+  }
+  const { error } = await supabase.from('tasks').delete().eq('id', taskId)
   if (error) throw error
 }
 

@@ -197,6 +197,7 @@ create table if not exists public.task_assignments (
   target_type      varchar(10) not null check (target_type in ('ORCHARD','AREA','TREE')),
   target_id        uuid not null,
   start_date       date not null default current_date,
+  next_start_date  date,
   recurrence_value integer check (recurrence_value is null or recurrence_value > 0),
   recurrence_unit  varchar(10) check (recurrence_unit in ('DAY','WEEK','MONTH')),
   active           boolean not null default true,
@@ -211,6 +212,10 @@ create index if not exists idx_assignments_target on public.task_assignments(tar
 drop trigger if exists trg_assignments_updated_at on public.task_assignments;
 create trigger trg_assignments_updated_at before update on public.task_assignments
   for each row execute function public.set_updated_at();
+
+-- 已建立過舊版資料表時，補上可調整的下一輪預計開始日。
+alter table public.task_assignments
+  add column if not exists next_start_date date;
 
 -- ------------------------------------------------------------
 -- task_execution_batches 執行批次

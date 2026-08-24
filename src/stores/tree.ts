@@ -51,6 +51,11 @@ export const useTreeStore = defineStore('tree', {
       await treeService.softDelete(id)
       this.trees = this.trees.filter((t) => t.id !== id)
     },
+
+    async hardDeleteTree(id: string) {
+      await treeService.hardDelete(id)
+      this.trees = this.trees.filter((t) => t.id !== id)
+    },
   },
 })
 
@@ -59,6 +64,7 @@ export const useMasterStore = defineStore('master', {
     treeTypes: [] as TreeType[],
     taskCategories: [] as TaskCategory[],
     loaded: false,
+    loadedInactive: false,
   }),
 
   getters: {
@@ -70,12 +76,16 @@ export const useMasterStore = defineStore('master', {
   },
 
   actions: {
-    async loadAll(force = false) {
-      if (this.loaded && !force) return
-      const [tt, tc] = await Promise.all([treeTypeService.list(), taskCategoryService.list()])
+    async loadAll(force = false, includeInactive = false) {
+      if (this.loaded && !force && includeInactive === this.loadedInactive) return
+      const [tt, tc] = await Promise.all([
+        treeTypeService.list(includeInactive),
+        taskCategoryService.list(includeInactive),
+      ])
       this.treeTypes = tt
       this.taskCategories = tc
       this.loaded = true
+      this.loadedInactive = includeInactive
     },
 
     async createTreeType(input: Partial<TreeType>) {
@@ -87,6 +97,10 @@ export const useMasterStore = defineStore('master', {
       const local = this.treeTypes.find((t) => t.id === id)
       if (local) Object.assign(local, input)
     },
+    async hardDeleteTreeType(id: string) {
+      await treeTypeService.hardDelete(id)
+      this.treeTypes = this.treeTypes.filter((t) => t.id !== id)
+    },
     async createCategory(input: Partial<TaskCategory>) {
       await taskCategoryService.create(input)
       await this.loadAll(true)
@@ -95,6 +109,10 @@ export const useMasterStore = defineStore('master', {
       await taskCategoryService.update(id, input)
       const local = this.taskCategories.find((c) => c.id === id)
       if (local) Object.assign(local, input)
+    },
+    async hardDeleteCategory(id: string) {
+      await taskCategoryService.hardDelete(id)
+      this.taskCategories = this.taskCategories.filter((c) => c.id !== id)
     },
   },
 })

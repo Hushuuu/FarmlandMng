@@ -11,10 +11,10 @@ export const useOrchardStore = defineStore('orchard', {
   }),
 
   actions: {
-    async loadOrchards() {
+    async loadOrchards(includeInactive = false) {
       this.loading = true
       try {
-        this.orchards = await orchardService.list()
+        this.orchards = await orchardService.list(includeInactive)
       } finally {
         this.loading = false
       }
@@ -40,6 +40,11 @@ export const useOrchardStore = defineStore('orchard', {
     async softDeleteOrchard(id: string) {
       await orchardService.softDelete(id)
       await this.loadOrchards()
+    },
+
+    async hardDeleteOrchard(id: string) {
+      await orchardService.hardDelete(id)
+      await this.loadOrchards(true)
     },
   },
 })
@@ -93,6 +98,11 @@ export const useAreaStore = defineStore('area', {
 
     async softDeleteArea(id: string) {
       await areaService.softDelete(id)
+      this.areas = this.areas.filter((a) => a.id !== id)
+    },
+
+    async hardDeleteArea(id: string) {
+      await areaService.hardDelete(id)
       this.areas = this.areas.filter((a) => a.id !== id)
     },
   },

@@ -2,8 +2,9 @@
 import { computed, onMounted, ref } from 'vue'
 import { NButton, NEmpty, NSpin, NTab, NTabs, useMessage } from 'naive-ui'
 import { useTaskStore } from '../stores/task'
-import type { DueStatus } from '../types/database'
+import type { DueStatus, PendingTaskInfo } from '../types/database'
 import TaskCard from '../components/task/TaskCard.vue'
+import TaskRescheduleModal from '../components/task/TaskRescheduleModal.vue'
 
 const store = useTaskStore()
 const message = useMessage()
@@ -14,12 +15,20 @@ const filtered = computed(() =>
   tab.value === 'ALL' ? store.pending : store.pending.filter((p) => p.dueStatus === tab.value),
 )
 
+const showReschedule = ref(false)
+const rescheduleInfo = ref<PendingTaskInfo | null>(null)
+
 async function execute(id: string) {
   try {
     await store.beginExecution(id)
   } catch (e) {
     message.error(e instanceof Error ? e.message : '無法開始執行')
   }
+}
+
+function openReschedule(info: PendingTaskInfo) {
+  rescheduleInfo.value = info
+  showReschedule.value = true
 }
 
 async function refresh() {
@@ -55,10 +64,18 @@ onMounted(refresh)
           :key="p.assignment.id"
           :info="p"
           :loading="store.executing"
+          :allow-reschedule="true"
           @execute="execute(p.assignment.id)"
+          @reschedule="openReschedule(p)"
         />
       </div>
     </n-spin>
+
+    <task-reschedule-modal
+      v-model:show="showReschedule"
+      :info="rescheduleInfo"
+      @saved="refresh"
+    />
   </div>
 </template>
 
@@ -75,4 +92,5 @@ onMounted(refresh)
   flex-direction: column;
   gap: 8px;
 }
+
 </style>

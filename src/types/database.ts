@@ -82,6 +82,7 @@ export interface TaskAssignment extends BaseRow {
   target_type: TargetType
   target_id: string
   start_date: string
+  next_start_date: string | null
   recurrence_value: number | null
   recurrence_unit: RecurrenceUnit | null
   active: boolean

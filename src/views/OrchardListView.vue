@@ -11,17 +11,20 @@ import {
   NInputNumber,
   NModal,
   NSpin,
+  NTag,
   useDialog,
   useMessage,
 } from 'naive-ui'
 import { useOrchardStore } from '../stores/orchard'
 import { genCode } from '../utils/code'
 import type { Orchard } from '../types/database'
+import { useManagementStore } from '../stores/management'
 
 const router = useRouter()
 const store = useOrchardStore()
 const message = useMessage()
 const dialog = useDialog()
+const management = useManagementStore()
 
 const showForm = ref(false)
 const editing = ref<Orchard | null>(null)
@@ -88,7 +91,24 @@ function confirmDelete(o: Orchard) {
   })
 }
 
-onMounted(() => store.loadOrchards())
+function confirmHardDelete(o: Orchard) {
+  dialog.error({
+    title: '永久刪除果園',
+    content: `將永久刪除「${o.name}」及其區域、果樹、任務排程與執行歷史，且無法復原。確定繼續？`,
+    positiveText: '永久刪除',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        await store.hardDeleteOrchard(o.id)
+        message.success('果園及相關資料已永久刪除')
+      } catch (e) {
+        message.error(e instanceof Error ? e.message : '永久刪除失敗')
+      }
+    },
+  })
+}
+
+onMounted(() => store.loadOrchards(true))
 </script>
 
 <template>
@@ -104,7 +124,10 @@ onMounted(() => store.loadOrchards())
         <n-card v-for="o in store.orchards" :key="o.id" size="small" class="orchard-item">
           <div class="row-main clickable" @click="router.push(`/orchards/${o.id}/map`)">
             <div>
-              <div class="name">{{ o.name }}</div>
+              <div class="name">
+                {{ o.name }}
+                <n-tag v-if="!o.active" size="tiny" type="error" round>已停用</n-tag>
+              </div>
               <div class="muted">地圖 {{ o.map_width }} × {{ o.map_height }}</div>
               <div v-if="o.description" class="muted desc">{{ o.description }}</div>
             </div>
@@ -114,7 +137,16 @@ onMounted(() => store.loadOrchards())
           </div>
           <div class="row-actions">
             <n-button size="tiny" quaternary @click.stop="openEdit(o)">編輯</n-button>
-            <n-button size="tiny" quaternary type="error" @click.stop="confirmDelete(o)">停用</n-button>
+            <n-button v-if="o.active" size="tiny" quaternary type="error" @click.stop="confirmDelete(o)">停用</n-button>
+            <n-button
+              v-if="management.unlocked"
+              size="tiny"
+              quaternary
+              type="error"
+              @click.stop="confirmHardDelete(o)"
+            >
+              永久刪除
+            </n-button>
           </div>
         </n-card>
       </div>

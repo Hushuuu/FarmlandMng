@@ -1,5 +1,7 @@
 import { supabase } from '../lib/supabase'
 import type { Area, TaskCategory, Tree, TreeType } from '../types/database'
+import { deleteExecutionData, listAssignmentIdsByTarget } from './hardDeleteService'
+import { managementService } from './managementService'
 
 export const treeTypeService = {
   async list(includeInactive = false): Promise<TreeType[]> {
@@ -18,6 +20,13 @@ export const treeTypeService = {
 
   async update(id: string, input: Partial<TreeType>): Promise<void> {
     const { error } = await supabase.from('tree_types').update(input).eq('id', id)
+    if (error) throw error
+  },
+
+  /** 管理模式專用：永久刪除果樹類型，既有果樹會改為未設定類型。 */
+  async hardDelete(id: string): Promise<void> {
+    managementService.assertUnlocked()
+    const { error } = await supabase.from('tree_types').delete().eq('id', id)
     if (error) throw error
   },
 }
@@ -76,6 +85,27 @@ export const treeService = {
     await this.update(id, { active: false })
   },
 
+  /** 管理模式專用：永久刪除果樹及其相關任務紀錄。 */
+  async hardDelete(id: string): Promise<void> {
+    managementService.assertUnlocked()
+    const { data: tree, error: treeError } = await supabase
+      .from('trees')
+      .select('id')
+      .eq('id', id)
+      .maybeSingle()
+    if (treeError) throw treeError
+    if (!tree) throw new Error('找不到果樹')
+
+    const assignmentIds = await listAssignmentIdsByTarget('TREE', [id])
+    await deleteExecutionData(assignmentIds, [id])
+    if (assignmentIds.length) {
+      const { error } = await supabase.from('task_assignments').delete().in('id', assignmentIds)
+      if (error) throw error
+    }
+    const { error } = await supabase.from('trees').delete().eq('id', id)
+    if (error) throw error
+  },
+
   async countByAreas(areaIds: string[]): Promise<Record<string, number>> {
     if (!areaIds.length) return {}
     const { data, error } = await supabase
@@ -131,6 +161,13 @@ export const taskCategoryService = {
 
   async update(id: string, input: Partial<TaskCategory>): Promise<void> {
     const { error } = await supabase.from('task_categories').update(input).eq('id', id)
+    if (error) throw error
+  },
+
+  /** 管理模式專用：永久刪除任務類別，既有任務會改為未分類。 */
+  async hardDelete(id: string): Promise<void> {
+    managementService.assertUnlocked()
+    const { error } = await supabase.from('task_categories').delete().eq('id', id)
     if (error) throw error
   },
 }
