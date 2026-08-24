@@ -31,6 +31,7 @@ import type {
 } from '../types/database'
 import { RECURRENCE_UNIT_OPTIONS, TARGET_TYPE_LABEL, recurrenceText } from '../constants/status'
 import { formatDate } from '../utils/date'
+import { genCode } from '../utils/code'
 import { useMasterStore } from '../stores/tree'
 
 const message = useMessage()
@@ -69,17 +70,18 @@ function openTaskEdit(t: Task) {
 }
 
 async function saveTask() {
-  if (!taskForm.value.code || !taskForm.value.name) {
-    message.warning('請填寫任務代碼與名稱')
+  if (!taskForm.value.name) {
+    message.warning('請填寫任務名稱')
     return
   }
   saving.value = true
   try {
     if (editingTask.value) {
-      await taskCrudService.update(editingTask.value.id, { ...taskForm.value })
+      const { code: _ignored, ...rest } = taskForm.value
+      await taskCrudService.update(editingTask.value.id, { ...rest })
       message.success('已更新任務')
     } else {
-      await taskCrudService.create({ ...taskForm.value })
+      await taskCrudService.create({ ...taskForm.value, code: genCode('TK') })
       message.success('已新增任務')
     }
     showTaskForm.value = false
@@ -307,7 +309,6 @@ onMounted(async () => {
             <div class="info">
               <div class="name">
                 {{ t.name }}
-                <n-tag size="tiny">{{ t.code }}</n-tag>
                 <n-tag v-if="categoryName(t.category_id)" size="tiny" :bordered="false" type="success">{{ categoryName(t.category_id) }}</n-tag>
                 <n-tag v-if="!t.active" size="tiny" type="error" round>已停用</n-tag>
               </div>
@@ -351,9 +352,6 @@ onMounted(async () => {
     <!-- 任務表單 -->
     <n-modal v-model:show="showTaskForm" preset="card" :title="editingTask ? '編輯任務' : '新增任務'" style="max-width: 400px">
       <n-form label-placement="top">
-        <n-form-item label="任務代碼" required>
-          <n-input v-model:value="taskForm.code" placeholder="例如：FERT-A01" />
-        </n-form-item>
         <n-form-item label="任務名稱" required>
           <n-input v-model:value="taskForm.name" placeholder="例如：A 區施肥" />
         </n-form-item>

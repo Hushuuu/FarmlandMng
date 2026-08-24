@@ -14,6 +14,7 @@ import {
   useMessage,
 } from 'naive-ui'
 import { useMasterStore } from '../stores/tree'
+import { genCode } from '../utils/code'
 import type { TaskCategory } from '../types/database'
 
 const masterStore = useMasterStore()
@@ -50,8 +51,8 @@ function openEdit(c: TaskCategory) {
 }
 
 async function save() {
-  if (!form.value.code || !form.value.name) {
-    message.warning('請填寫代碼與名稱')
+  if (!form.value.name) {
+    message.warning('請填寫名稱')
     return
   }
   saving.value = true
@@ -60,7 +61,7 @@ async function save() {
       await masterStore.updateCategory(editing.value.id, { ...form.value })
       message.success('已更新')
     } else {
-      await masterStore.createCategory({ ...form.value })
+      await masterStore.createCategory({ ...form.value, code: genCode('TC') })
       message.success('已新增')
     }
     showForm.value = false
@@ -102,8 +103,8 @@ onMounted(async () => {
         <n-card v-for="c in masterStore.taskCategories" :key="c.id" size="small">
           <div class="row-main">
             <div class="info">
-              <div class="name">{{ c.name }} <span class="muted">{{ c.code }}</span></div>
-              <div class="muted">{{ c.description || '-' }}</div>
+              <div class="name">{{ c.name }}</div>
+              <div class="muted">{{ c.description || '' }}</div>
             </div>
             <div class="actions">
               <n-switch size="small" :value="c.active" @update:value="(v: boolean) => toggleActive(c, v)" />
@@ -116,9 +117,6 @@ onMounted(async () => {
 
     <n-modal v-model:show="showForm" preset="card" :title="editing ? '編輯任務類別' : '新增任務類別'" style="max-width: 400px">
       <n-form label-placement="top">
-        <n-form-item label="代碼" required>
-          <n-input v-model:value="form.code" placeholder="例如：FERTILIZE" />
-        </n-form-item>
         <n-form-item label="名稱" required>
           <n-input v-model:value="form.name" placeholder="例如：施肥" />
         </n-form-item>

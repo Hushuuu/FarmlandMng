@@ -27,6 +27,7 @@ import { getPendingTasks } from '../services/taskService'
 import type { Area, Orchard, PendingTaskInfo, TreeStatus } from '../types/database'
 import { TARGET_TYPE_LABEL, TREE_STATUS_META } from '../constants/status'
 import { formatDate } from '../utils/date'
+import { genCode } from '../utils/code'
 import { useTreeStore, useMasterStore } from '../stores/tree'
 import { useTaskStore } from '../stores/task'
 
@@ -131,7 +132,7 @@ const form = ref({
 function openCreate() {
   const c = canvasRef.value?.centerVirtual() ?? { x: 200, y: 200 }
   form.value = {
-    code: `T${String(treeStore.trees.length + 1).padStart(3, '0')}`,
+    code: '',
     name: '',
     tree_type_id: masterStore.treeTypes[0]?.id ?? null,
     status: 'NORMAL',
@@ -160,14 +161,9 @@ function openEditSelected() {
 }
 
 async function saveForm() {
-  if (!form.value.code) {
-    message.warning('請填寫果樹編號')
-    return
-  }
   saving.value = true
   try {
     const payload = {
-      code: form.value.code,
       name: form.value.name || null,
       tree_type_id: form.value.tree_type_id,
       status: form.value.status,
@@ -177,6 +173,7 @@ async function saveForm() {
     if (pendingCreatePos.value) {
       await treeStore.createTree({
         ...payload,
+        code: genCode('TREE'),
         area_id: areaId,
         position_x: pendingCreatePos.value.x,
         position_y: pendingCreatePos.value.y,
@@ -339,7 +336,6 @@ function goBack() {
         <template #header>
           <div class="info-head">
             <span class="name">{{ selected.name || selected.code }}</span>
-            <n-tag size="small">{{ selected.code }}</n-tag>
             <n-tag size="small" :bordered="false" type="success">{{ typeName(selected.tree_type_id) }}</n-tag>
           </div>
         </template>
@@ -383,9 +379,6 @@ function goBack() {
 
     <n-modal v-model:show="showForm" preset="card" :title="formTitle" style="max-width: 400px">
       <n-form label-placement="top">
-        <n-form-item label="編號" required>
-          <n-input v-model:value="form.code" placeholder="例如：T001" />
-        </n-form-item>
         <n-form-item label="名稱">
           <n-input v-model:value="form.name" placeholder="選填，例如：老芒果樹" />
         </n-form-item>

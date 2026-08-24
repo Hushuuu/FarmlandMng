@@ -15,6 +15,7 @@ import {
   useMessage,
 } from 'naive-ui'
 import { useMasterStore } from '../stores/tree'
+import { genCode } from '../utils/code'
 import type { TreeType } from '../types/database'
 
 const masterStore = useMasterStore()
@@ -55,8 +56,8 @@ function openEdit(t: TreeType) {
 }
 
 async function save() {
-  if (!form.value.code || !form.value.name) {
-    message.warning('請填寫代碼與名稱')
+  if (!form.value.name) {
+    message.warning('請填寫名稱')
     return
   }
   saving.value = true
@@ -65,7 +66,7 @@ async function save() {
       await masterStore.updateTreeType(editing.value.id, { ...form.value })
       message.success('已更新')
     } else {
-      await masterStore.createTreeType({ ...form.value })
+      await masterStore.createTreeType({ ...form.value, code: genCode('TT') })
       message.success('已新增')
     }
     showForm.value = false
@@ -110,8 +111,8 @@ onMounted(async () => {
               {{ t.icon }}
             </div>
             <div class="info">
-              <div class="name">{{ t.name }} <span class="muted">{{ t.code }}</span></div>
-              <div class="muted">{{ t.description || '-' }}</div>
+              <div class="name">{{ t.name }}</div>
+              <div class="muted">{{ t.description || '' }}</div>
             </div>
             <div class="actions">
               <n-switch size="small" :value="t.active" @update:value="(v: boolean) => toggleActive(t, v)" />
@@ -124,9 +125,6 @@ onMounted(async () => {
 
     <n-modal v-model:show="showForm" preset="card" :title="editing ? '編輯果樹類型' : '新增果樹類型'" style="max-width: 400px">
       <n-form label-placement="top">
-        <n-form-item label="代碼" required>
-          <n-input v-model:value="form.code" placeholder="例如：MANGO" />
-        </n-form-item>
         <n-form-item label="名稱" required>
           <n-input v-model:value="form.name" placeholder="例如：芒果" />
         </n-form-item>

@@ -85,15 +85,10 @@ function openEdit(r: Row) {
 }
 
 async function save() {
-  if (!form.value.code) {
-    message.warning('請填寫編號')
-    return
-  }
   saving.value = true
   try {
     const d = form.value.planted_at ? new Date(form.value.planted_at) : null
     await treeService.update(editing.value!.id, {
-      code: form.value.code,
       name: form.value.name || null,
       tree_type_id: form.value.tree_type_id,
       status: form.value.status,
@@ -169,7 +164,6 @@ onMounted(async () => {
             <div class="row-info">
               <div class="name">
                 {{ r.name || r.code }}
-                <n-tag size="tiny">{{ r.code }}</n-tag>
                 <n-tag v-if="r.status !== 'NORMAL'" size="tiny" type="warning" round>
                   {{ TREE_STATUS_META[r.status].label }}
                 </n-tag>
@@ -195,9 +189,6 @@ onMounted(async () => {
 
     <n-modal v-model:show="showForm" preset="card" title="編輯果樹" style="max-width: 400px">
       <n-form label-placement="top">
-        <n-form-item label="編號" required>
-          <n-input v-model:value="form.code" />
-        </n-form-item>
         <n-form-item label="名稱">
           <n-input v-model:value="form.name" placeholder="選填" />
         </n-form-item>

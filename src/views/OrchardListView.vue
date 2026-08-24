@@ -11,11 +11,11 @@ import {
   NInputNumber,
   NModal,
   NSpin,
-  NTag,
   useDialog,
   useMessage,
 } from 'naive-ui'
 import { useOrchardStore } from '../stores/orchard'
+import { genCode } from '../utils/code'
 import type { Orchard } from '../types/database'
 
 const router = useRouter()
@@ -53,17 +53,18 @@ function openEdit(o: Orchard) {
 }
 
 async function save() {
-  if (!form.value.code || !form.value.name) {
-    message.warning('請填寫編號與名稱')
+  if (!form.value.name) {
+    message.warning('請填寫果園名稱')
     return
   }
   saving.value = true
   try {
     if (editing.value) {
-      await store.updateOrchard(editing.value.id, { ...form.value })
+      const { code: _ignored, ...rest } = form.value
+      await store.updateOrchard(editing.value.id, { ...rest })
       message.success('已更新')
     } else {
-      await store.createOrchard({ ...form.value, active: true })
+      await store.createOrchard({ ...form.value, code: genCode('ORCH'), active: true })
       message.success('已建立果園')
     }
     showForm.value = false
@@ -103,8 +104,8 @@ onMounted(() => store.loadOrchards())
         <n-card v-for="o in store.orchards" :key="o.id" size="small" class="orchard-item">
           <div class="row-main clickable" @click="router.push(`/orchards/${o.id}/map`)">
             <div>
-              <div class="name">{{ o.name }} <n-tag size="tiny">{{ o.code }}</n-tag></div>
-              <div class="muted">{{ o.map_width }} × {{ o.map_height }}</div>
+              <div class="name">{{ o.name }}</div>
+              <div class="muted">地圖 {{ o.map_width }} × {{ o.map_height }}</div>
               <div v-if="o.description" class="muted desc">{{ o.description }}</div>
             </div>
             <n-button size="small" secondary type="primary" @click.stop="router.push(`/orchards/${o.id}/map`)">
@@ -121,9 +122,6 @@ onMounted(() => store.loadOrchards())
 
     <n-modal v-model:show="showForm" preset="card" :title="editing ? '編輯果園' : '新增果園'" style="max-width: 420px">
       <n-form label-placement="top">
-        <n-form-item label="編號" required>
-          <n-input v-model:value="form.code" placeholder="例如：O01" />
-        </n-form-item>
         <n-form-item label="名稱" required>
           <n-input v-model:value="form.name" placeholder="例如：一號果園" />
         </n-form-item>

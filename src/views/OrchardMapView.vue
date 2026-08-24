@@ -27,6 +27,7 @@ import { getPendingTasks } from '../services/taskService'
 import type { Orchard, PendingTaskInfo } from '../types/database'
 import { TARGET_TYPE_LABEL } from '../constants/status'
 import { formatDate } from '../utils/date'
+import { genCode } from '../utils/code'
 import { useAreaStore } from '../stores/orchard'
 import { useTaskStore } from '../stores/task'
 
@@ -101,7 +102,7 @@ function openCreate() {
   const w = 300
   const h = 220
   form.value = {
-    code: `A${areaStore.areas.length + 1}`,
+    code: '',
     name: '',
     description: '',
     width: w,
@@ -132,8 +133,8 @@ function openEditSelected() {
 }
 
 async function saveForm() {
-  if (!form.value.code || !form.value.name) {
-    message.warning('請填寫區域編號與名稱')
+  if (!form.value.name) {
+    message.warning('請填寫區域名稱')
     return
   }
   saving.value = true
@@ -142,6 +143,7 @@ async function saveForm() {
       await areaStore.createArea({
         orchard_id: orchardId,
         ...form.value,
+        code: genCode('AREA'),
         position_x: pendingCreatePos.value.x,
         position_y: pendingCreatePos.value.y,
         rotation: 0,
@@ -149,7 +151,8 @@ async function saveForm() {
       })
       message.success('已新增區域，可直接拖曳調整位置')
     } else if (selected.value) {
-      await areaStore.updateArea(selected.value.id, { ...form.value })
+      const { code: _ignored, ...rest } = form.value
+      await areaStore.updateArea(selected.value.id, { ...rest })
       message.success('已更新')
     }
     showForm.value = false
@@ -360,7 +363,6 @@ function enterArea() {
         <template #header>
           <div class="info-head">
             <span class="name">{{ selected.name }}</span>
-            <n-tag size="small">{{ selected.code }}</n-tag>
           </div>
         </template>
         <div class="stat-row">
@@ -419,9 +421,6 @@ function enterArea() {
 
     <n-modal v-model:show="showForm" preset="card" :title="formTitle" style="max-width: 400px">
       <n-form label-placement="top">
-        <n-form-item label="區域編號" required>
-          <n-input v-model:value="form.code" placeholder="例如：A01" />
-        </n-form-item>
         <n-form-item label="區域名稱" required>
           <n-input v-model:value="form.name" placeholder="例如：A 區" />
         </n-form-item>
