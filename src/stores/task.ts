@@ -10,6 +10,7 @@ import {
   getPendingTasks,
   listBatchSummaries,
   setItemStatus,
+  setItemsStatus as setExecutionItemsStatus,
   startExecution,
   taskCrudService,
 } from '../services/taskService'
@@ -150,6 +151,19 @@ export const useTaskStore = defineStore('task', {
       if (local) {
         local.status = status
         local.executed_at = status === 'PENDING' ? null : new Date().toISOString()
+      }
+    },
+
+    async setItemsStatus(itemIds: string[], status: ItemStatus) {
+      if (!itemIds.length) return
+      await setExecutionItemsStatus(itemIds, status)
+      const ids = new Set(itemIds)
+      const executedAt = status === 'PENDING' ? null : new Date().toISOString()
+      for (const item of this.activeItems) {
+        if (ids.has(item.id)) {
+          item.status = status
+          item.executed_at = executedAt
+        }
       }
     },
 

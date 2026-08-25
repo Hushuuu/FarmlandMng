@@ -98,6 +98,13 @@ export const areaService = {
     return (data ?? []) as Area[]
   },
 
+  async listByIds(areaIds: string[]): Promise<Area[]> {
+    if (!areaIds.length) return []
+    const { data, error } = await supabase.from('areas').select('*').in('id', areaIds).order('code')
+    if (error) throw error
+    return (data ?? []) as Area[]
+  },
+
   async get(id: string): Promise<Area | null> {
     const { data, error } = await supabase.from('areas').select('*').eq('id', id).maybeSingle()
     if (error) throw error

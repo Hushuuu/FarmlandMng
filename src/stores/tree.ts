@@ -32,6 +32,14 @@ export const useTreeStore = defineStore('tree', {
       return t
     },
 
+    async createTrees(inputs: Partial<Tree>[]) {
+      const trees = await treeService.createMany(inputs)
+      if (this.currentAreaId) {
+        this.trees.push(...trees.filter((t) => t.area_id === this.currentAreaId && !this.trees.some((x) => x.id === t.id)))
+      }
+      return trees
+    },
+
     async updateTree(id: string, input: Partial<Tree>) {
       await treeService.update(id, input)
       const local = this.trees.find((t) => t.id === id)

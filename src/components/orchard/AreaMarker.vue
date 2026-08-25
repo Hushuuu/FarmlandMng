@@ -11,15 +11,27 @@ const props = withDefaults(
     selected?: boolean
     draggable?: boolean
     badge?: string | null
+    checkable?: boolean
+    checked?: boolean
+    indeterminate?: boolean
   }>(),
-  { subtitle: null, rotation: 0, selected: false, draggable: false, badge: null },
+  {
+    subtitle: null,
+    rotation: 0,
+    selected: false,
+    draggable: false,
+    badge: null,
+    checkable: false,
+    checked: false,
+    indeterminate: false,
+  },
 )
 
 const x = defineModel<number>('x', { required: true })
 const y = defineModel<number>('y', { required: true })
 const scaleModel = defineModel<number>('scale', { default: 1 })
 
-const emit = defineEmits<{ select: []; 'drag-end': [] }>()
+const emit = defineEmits<{ select: []; toggle: []; 'drag-end': [] }>()
 
 const el = ref<HTMLElement | null>(null)
 let dragging = false
@@ -66,7 +78,7 @@ const style = computed(() => ({
   <div
     ref="el"
     class="area-marker"
-    :class="{ selected, draggable }"
+    :class="{ selected, draggable, checked, indeterminate }"
     :style="style"
     @click.stop="emit('select')"
     @pointerdown="onPointerDown"
@@ -74,6 +86,17 @@ const style = computed(() => ({
     @pointerup="onPointerUp"
     @pointercancel="onPointerUp"
   >
+    <button
+      v-if="checkable"
+      type="button"
+      class="check-button"
+      :class="{ checked, indeterminate }"
+      :aria-label="checked ? `取消勾選${label}` : `勾選${label}`"
+      @pointerdown.stop
+      @click.stop="emit('toggle')"
+    >
+      {{ checked ? '✓' : indeterminate ? '−' : '' }}
+    </button>
     <div class="area-label">{{ label }}</div>
     <div v-if="subtitle" class="area-sub">{{ subtitle }}</div>
     <div v-if="badge" class="area-badge">{{ badge }}</div>
@@ -98,9 +121,46 @@ const style = computed(() => ({
   box-shadow: 0 0 0 3px rgba(24, 160, 88, 0.35);
 }
 
+.area-marker.checked {
+  border-color: #18a058;
+  background: rgba(24, 160, 88, 0.24);
+}
+
+.area-marker.indeterminate {
+  border-color: #f0a020;
+}
+
 .area-marker.draggable {
   cursor: grab;
   touch-action: none;
+}
+
+.check-button {
+  position: absolute;
+  top: 7px;
+  left: 7px;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 2px solid #b9bec4;
+  border-radius: 7px;
+  background: #fff;
+  color: #fff;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.check-button.checked {
+  border-color: #18a058;
+  background: #18a058;
+}
+
+.check-button.indeterminate {
+  border-color: #f0a020;
+  background: #f0a020;
 }
 
 .area-label {

@@ -490,6 +490,18 @@ export async function setItemStatus(itemId: string, status: ItemStatus): Promise
   if (error) throw error
 }
 
+export async function setItemsStatus(itemIds: string[], status: ItemStatus): Promise<void> {
+  if (!itemIds.length) return
+  const patch: Partial<ExecutionItem> = {
+    status,
+    executed_at: status === 'PENDING' ? null : new Date().toISOString(),
+  }
+  const { data: userRes } = await supabase.auth.getUser()
+  if (userRes.user) patch.operator_id = userRes.user.id
+  const { error } = await supabase.from('task_execution_items').update(patch).in('id', itemIds)
+  if (error) throw error
+}
+
 /** 全部完成：剩餘 PENDING 一律標記完成 */
 export async function completeAllItems(batchId: string): Promise<void> {
   const { data: userRes } = await supabase.auth.getUser()

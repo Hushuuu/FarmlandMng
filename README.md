@@ -23,11 +23,6 @@ VITE_MANAGEMENT_PASSWORD=<管理模式密碼>
 
 在「系統設定」輸入管理模式密碼後，才會顯示永久刪除與相關管理操作；解鎖只在目前頁面工作階段有效。注意 `VITE_*` 會被打包到前端，這是防止誤操作的便利門檻，不是伺服器安全邊界；若需要真正的權限隔離，應改由 Supabase Edge Function / RLS 角色在伺服器端驗證。
 
-目前設定的 Supabase 專案：
-
-- Project ref：`mpjtwxrgespqenlhwsbu`
-- Key：`sb_publishable_esThk_0pZpTki3ZMmDuUkQ_e2HFwuzN`
-
 ## 資料庫建置（一次性）
 
 到 Supabase Dashboard → SQL Editor，執行 `supabase/schema.sql` 全部內容。
@@ -64,19 +59,21 @@ Task ─ TaskAssignment（ORCHARD / AREA / TREE + 週期）
 - 下次到期日 = 上次完成日 + 週期（§63）
 - 一般刪除皆為軟刪除（active = false），歷史紀錄保留（§60）；管理模式可選擇永久刪除
 - 執行歷史中的已結算批次可取消結算，恢復為執行中
+- 區域地圖新增果樹時可一次建立多棵，預設以橫向單列排列
+- 執行任務可切換地圖勾選，在區域總覽整區完成，或進入區域逐棵勾選果樹
 
 ## 主要頁面
 
-| 路徑 | 說明 |
-| --- | --- |
-| `/` | Dashboard 總覽 |
-| `/orchards` | 果園列表 |
-| `/orchards/:id/map` | 果園地圖（Pan/Zoom/編輯/拖曳區域） |
-| `/orchards/:id/areas/:areaId` | 區域地圖（果樹自由座標） |
-| `/trees` | 果樹管理 |
-| `/tree-types` | 果樹類型 |
-| `/task-categories` | 任務類別 |
-| `/tasks` | 任務設定（含排程） |
-| `/tasks/pending` | 待執行任務 |
-| `/tasks/history` | 任務歷史（`?tree=` 可篩單一果樹） |
-| `/settings` | 系統設定 |
+| 路徑                          | 說明                               |
+| ----------------------------- | ---------------------------------- |
+| `/`                           | Dashboard 總覽                     |
+| `/orchards`                   | 果園列表                           |
+| `/orchards/:id/map`           | 果園地圖（Pan/Zoom/編輯/拖曳區域） |
+| `/orchards/:id/areas/:areaId` | 區域地圖（果樹自由座標）           |
+| `/trees`                      | 果樹管理                           |
+| `/tree-types`                 | 果樹類型                           |
+| `/task-categories`            | 任務類別                           |
+| `/tasks`                      | 任務設定（含排程）                 |
+| `/tasks/pending`              | 待執行任務                         |
+| `/tasks/history`              | 任務歷史（`?tree=` 可篩單一果樹）  |
+| `/settings`                   | 系統設定                           |

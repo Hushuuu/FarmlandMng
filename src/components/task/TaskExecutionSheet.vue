@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import {
   NButton,
   NDrawer,
@@ -16,6 +16,7 @@ import type { DropdownOption } from 'naive-ui'
 import { useTaskStore } from '../../stores/task'
 import { ITEM_STATUS_META } from '../../constants/status'
 import type { ItemStatus } from '../../types/database'
+import TaskExecutionMap from './TaskExecutionMap.vue'
 
 const store = useTaskStore()
 const message = useMessage()
@@ -32,6 +33,15 @@ const pendingCount = computed(() => total.value - doneCount.value)
 /** 清單篩選 */
 type ListFilter = 'ALL' | 'OPEN' | 'DONE'
 const filter = ref<ListFilter>('ALL')
+const viewMode = ref<'LIST' | 'MAP'>('LIST')
+
+watch(
+  () => store.activeBatch?.id,
+  () => {
+    viewMode.value = 'LIST'
+    filter.value = 'ALL'
+  },
+)
 
 const openItems = computed(() =>
   store.activeItems.filter((i) => i.status === 'PENDING' || i.status === 'FAILED'),
@@ -195,7 +205,7 @@ function closeSheet() {
       <template #header>
         <div class="sheet-header">
           <div class="title">執行任務</div>
-          <div class="muted">點項目切換完成；關閉只收起資訊卡，不會重置進度</div>
+          <div class="muted">可用清單或地圖勾選果樹；關閉只收起資訊卡，不會重置進度</div>
         </div>
       </template>
 
@@ -227,44 +237,53 @@ function closeSheet() {
           <n-empty v-if="!total" description="沒有可執行項目" style="margin-top: 40px" />
 
           <template v-else>
-            <div class="list-filter">
-              <button :class="{ on: filter === 'ALL' }" @click="filter = 'ALL'">全部 {{ total }}</button>
-              <button :class="{ on: filter === 'OPEN' }" @click="filter = 'OPEN'">未處理 {{ openItems.length }}</button>
-              <button :class="{ on: filter === 'DONE' }" @click="filter = 'DONE'">已處理 {{ doneCount }}</button>
+            <div class="view-switch">
+              <button :class="{ on: viewMode === 'LIST' }" @click="viewMode = 'LIST'">清單勾選</button>
+              <button :class="{ on: viewMode === 'MAP' }" @click="viewMode = 'MAP'">地圖勾選</button>
             </div>
 
-            <div class="item-list">
-              <div
-                v-for="item in visibleItems"
-                :key="item.id"
-                class="exec-item"
-                :class="{ done: item.status === 'COMPLETED', skipped: item.status === 'SKIPPED', failed: item.status === 'FAILED' }"
-                @click="tapItem(item.id, item.status)"
-              >
-                <div class="check">
-                  <span v-if="item.status === 'COMPLETED'" class="mark ok">✓</span>
-                  <span v-else-if="item.status === 'SKIPPED'" class="mark skip">↷</span>
-                  <span v-else-if="item.status === 'FAILED'" class="mark fail">✕</span>
-                  <span v-else class="mark pending">○</span>
-                </div>
-                <div class="info">
-                  <div class="name">{{ treeLabel(item.tree) }}</div>
-                  <div v-if="item.note" class="note muted">{{ item.note }}</div>
-                </div>
-                <n-tag size="tiny" :type="ITEM_STATUS_META[item.status].type" round>
-                  {{ ITEM_STATUS_META[item.status].label }}
-                </n-tag>
-                <n-dropdown
-                  trigger="click"
-                  :options="itemOptions()"
-                  @select="(key: string) => onMenu(key, item.id, item.status)"
-                >
-                  <button class="more-btn" @click.stop>⋯</button>
-                </n-dropdown>
+            <task-execution-map v-if="viewMode === 'MAP'" :items="store.activeItems" />
+
+            <template v-else>
+              <div class="list-filter">
+                <button :class="{ on: filter === 'ALL' }" @click="filter = 'ALL'">全部 {{ total }}</button>
+                <button :class="{ on: filter === 'OPEN' }" @click="filter = 'OPEN'">未處理 {{ openItems.length }}</button>
+                <button :class="{ on: filter === 'DONE' }" @click="filter = 'DONE'">已處理 {{ doneCount }}</button>
               </div>
 
-              <div v-if="!visibleItems.length" class="muted empty-filter">此分類沒有項目</div>
-            </div>
+              <div class="item-list">
+                <div
+                  v-for="item in visibleItems"
+                  :key="item.id"
+                  class="exec-item"
+                  :class="{ done: item.status === 'COMPLETED', skipped: item.status === 'SKIPPED', failed: item.status === 'FAILED' }"
+                  @click="tapItem(item.id, item.status)"
+                >
+                  <div class="check">
+                    <span v-if="item.status === 'COMPLETED'" class="mark ok">✓</span>
+                    <span v-else-if="item.status === 'SKIPPED'" class="mark skip">↷</span>
+                    <span v-else-if="item.status === 'FAILED'" class="mark fail">✕</span>
+                    <span v-else class="mark pending">○</span>
+                  </div>
+                  <div class="info">
+                    <div class="name">{{ treeLabel(item.tree) }}</div>
+                    <div v-if="item.note" class="note muted">{{ item.note }}</div>
+                  </div>
+                  <n-tag size="tiny" :type="ITEM_STATUS_META[item.status].type" round>
+                    {{ ITEM_STATUS_META[item.status].label }}
+                  </n-tag>
+                  <n-dropdown
+                    trigger="click"
+                    :options="itemOptions()"
+                    @select="(key: string) => onMenu(key, item.id, item.status)"
+                  >
+                    <button class="more-btn" @click.stop>⋯</button>
+                  </n-dropdown>
+                </div>
+
+                <div v-if="!visibleItems.length" class="muted empty-filter">此分類沒有項目</div>
+              </div>
+            </template>
           </template>
 
           <div class="bottom-space" />
@@ -312,6 +331,30 @@ function closeSheet() {
   display: flex;
   gap: 6px;
   margin-top: 10px;
+}
+
+.view-switch {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.view-switch button {
+  flex: 1;
+  padding: 7px 0;
+  border: 1px solid #e0e3e8;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 13px;
+  color: #555b61;
+  cursor: pointer;
+}
+
+.view-switch button.on {
+  border-color: var(--primary);
+  color: var(--primary);
+  font-weight: 700;
+  background: rgba(24, 160, 88, 0.07);
 }
 
 .list-filter button {

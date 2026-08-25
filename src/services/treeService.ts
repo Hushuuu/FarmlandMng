@@ -68,6 +68,13 @@ export const treeService = {
     return data as Tree
   },
 
+  async createMany(inputs: Partial<Tree>[]): Promise<Tree[]> {
+    if (!inputs.length) return []
+    const { data, error } = await supabase.from('trees').insert(inputs).select()
+    if (error) throw error
+    return (data ?? []) as Tree[]
+  },
+
   async update(id: string, input: Partial<Tree>): Promise<void> {
     const { error } = await supabase.from('trees').update(input).eq('id', id)
     if (error) throw error

@@ -9,6 +9,7 @@ import {
   NForm,
   NFormItem,
   NInput,
+  NInputNumber,
   NModal,
   NSelect,
   NSpin,
@@ -137,6 +138,7 @@ const form = ref({
   status: 'NORMAL' as TreeStatus,
   planted_at: null as number | null,
   note: '',
+  count: 1,
 })
 
 function openCreate() {
@@ -148,6 +150,7 @@ function openCreate() {
     status: 'NORMAL',
     planted_at: null,
     note: '',
+    count: 1,
   }
   pendingCreatePos.value = { x: c.x, y: c.y }
   formTitle.value = '新增果樹（建立後可拖曳調整位置）'
@@ -164,10 +167,31 @@ function openEditSelected() {
     status: t.status,
     planted_at: t.planted_at ? new Date(t.planted_at).getTime() : null,
     note: t.note ?? '',
+    count: 1,
   }
   pendingCreatePos.value = null
   formTitle.value = '編輯果樹'
   showForm.value = true
+}
+
+function horizontalPositions(count: number, center: { x: number; y: number }) {
+  const width = Number(area.value?.width ?? 300)
+  const height = Number(area.value?.height ?? 220)
+  const edgePadding = 34
+  const spacing =
+    count > 1
+      ? Math.min(80, Math.max(44, (width - edgePadding * 2) / (count - 1)))
+      : 0
+  const rowWidth = spacing * (count - 1)
+  const minStartX = edgePadding
+  const maxStartX = width - edgePadding - rowWidth
+  const startX = Math.max(minStartX, Math.min(maxStartX, center.x - rowWidth / 2))
+  const y = Math.max(edgePadding, Math.min(height - edgePadding, center.y))
+
+  return Array.from({ length: count }, (_, index) => ({
+    x: Math.round(startX + spacing * index),
+    y: Math.round(y),
+  }))
 }
 
 async function saveForm() {
@@ -181,15 +205,26 @@ async function saveForm() {
       note: form.value.note || null,
     }
     if (pendingCreatePos.value) {
-      await treeStore.createTree({
+      const count = Math.floor(Number(form.value.count))
+      if (!Number.isInteger(count) || count < 1 || count > 100) {
+        message.warning('新增數量請填寫 1～100 棵')
+        return
+      }
+      const positions = horizontalPositions(count, pendingCreatePos.value)
+      const baseName = form.value.name.trim()
+      const inputs = positions.map((position, index) => ({
         ...payload,
+        name: baseName
+          ? `${baseName}${count > 1 ? ` ${index + 1}` : ''}`
+          : null,
         code: genCode('TREE'),
         area_id: areaId,
-        position_x: pendingCreatePos.value.x,
-        position_y: pendingCreatePos.value.y,
+        position_x: position.x,
+        position_y: position.y,
         active: true,
-      })
-      message.success('已新增果樹，可直接拖曳調整位置')
+      }))
+      const created = await treeStore.createTrees(inputs)
+      message.success(`已新增 ${created.length} 棵果樹，已橫向排列，可直接拖曳調整位置`)
     } else if (selected.value) {
       await treeStore.updateTree(selected.value.id, payload)
       message.success('已更新')
@@ -428,6 +463,10 @@ function goBack() {
       <n-form label-placement="top">
         <n-form-item label="名稱">
           <n-input v-model:value="form.name" placeholder="選填，例如：老芒果樹" />
+        </n-form-item>
+        <n-form-item v-if="pendingCreatePos" label="新增數量">
+          <n-input-number v-model:value="form.count" :min="1" :max="100" :precision="0" style="width: 100%" />
+          <div class="muted">會以目前地圖中心為基準橫向排列，建立後可拖曳調整位置。</div>
         </n-form-item>
         <n-form-item label="果樹類型">
           <n-select v-model:value="form.tree_type_id" :options="masterStore.treeTypeOptions" placeholder="選擇類型" clearable />

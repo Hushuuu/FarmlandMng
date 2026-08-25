@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import type { ItemStatus } from '../../types/database'
 
 const props = withDefaults(
   defineProps<{
@@ -9,15 +10,27 @@ const props = withDefaults(
     draggable?: boolean
     color?: string | null
     statusDot?: string | null
+    checkable?: boolean
+    checked?: boolean
+    checkState?: ItemStatus
   }>(),
-  { icon: '🌳', selected: false, draggable: false, color: null, statusDot: null },
+  {
+    icon: '🌳',
+    selected: false,
+    draggable: false,
+    color: null,
+    statusDot: null,
+    checkable: false,
+    checked: false,
+    checkState: 'PENDING',
+  },
 )
 
 const x = defineModel<number>('x', { required: true })
 const y = defineModel<number>('y', { required: true })
 const scaleModel = defineModel<number>('scale', { default: 1 })
 
-const emit = defineEmits<{ select: []; 'drag-end': [] }>()
+const emit = defineEmits<{ select: []; toggle: []; 'drag-end': [] }>()
 
 const el = ref<HTMLElement | null>(null)
 let dragging = false
@@ -54,13 +67,20 @@ const style = computed(() => ({
   left: `${x.value}px`,
   top: `${y.value}px`,
 }))
+
+const checkSymbol = computed(() => {
+  if (props.checkState === 'COMPLETED') return '✓'
+  if (props.checkState === 'SKIPPED') return '↷'
+  if (props.checkState === 'FAILED') return '✕'
+  return ''
+})
 </script>
 
 <template>
   <div
     ref="el"
     class="tree-marker"
-    :class="{ selected, draggable }"
+    :class="{ selected, draggable, checked }"
     :style="style"
     @click.stop="emit('select')"
     @pointerdown="onPointerDown"
@@ -68,6 +88,17 @@ const style = computed(() => ({
     @pointerup="onPointerUp"
     @pointercancel="onPointerUp"
   >
+    <button
+      v-if="checkable"
+      type="button"
+      class="check-button"
+      :class="`state-${checkState.toLowerCase()}`"
+      :aria-label="checked ? `取消勾選${label}` : `勾選${label}`"
+      @pointerdown.stop
+      @click.stop="emit('toggle')"
+    >
+      {{ checkSymbol }}
+    </button>
     <div class="tree-dot" :style="{ borderColor: color ?? '#2f9e63' }">
       <span class="tree-icon">{{ icon }}</span>
       <span v-if="statusDot" class="status-dot" :style="{ background: statusDot }" />
@@ -109,6 +140,45 @@ const style = computed(() => ({
   box-shadow:
     0 0 0 4px rgba(24, 160, 88, 0.35),
     0 1px 4px rgba(0, 0, 0, 0.18);
+}
+
+.tree-marker.checked .tree-dot {
+  box-shadow:
+    0 0 0 4px rgba(24, 160, 88, 0.35),
+    0 1px 4px rgba(0, 0, 0, 0.18);
+}
+
+.check-button {
+  position: absolute;
+  top: -7px;
+  right: -14px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 2px solid #b9bec4;
+  border-radius: 50%;
+  background: #fff;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.check-button.state-completed {
+  border-color: #18a058;
+  background: #18a058;
+}
+
+.check-button.state-skipped {
+  border-color: #f0a020;
+  background: #f0a020;
+}
+
+.check-button.state-failed {
+  border-color: #d03050;
+  background: #d03050;
 }
 
 .tree-icon {
