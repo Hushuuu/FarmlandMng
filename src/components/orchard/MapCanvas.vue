@@ -49,8 +49,15 @@ function fit(padding = 0.92) {
   offsetY.value = (h - props.height * s) / 2
 }
 
-/** 內容 bbox：縮放平移讓所有項目落在視野內（無項目則退回全圖 fit） */
-function focusContent(items: { x: number; y: number; w?: number; h?: number }[], padding = 0.5) {
+/**
+ * 內容 bbox：縮放平移讓所有項目落在視野內（無項目則退回全圖 fit）
+ * - margin：螢幕固定像素邊距，項目多時盡量填滿視窗、只留固定邊距
+ * - maxScale：放大上限，項目少時避免過度放大失去 context
+ */
+function focusContent(
+  items: { x: number; y: number; w?: number; h?: number }[],
+  opts: { margin?: number; maxScale?: number } = {},
+) {
   if (!items.length) {
     fit()
     return
@@ -67,11 +74,13 @@ function focusContent(items: { x: number; y: number; w?: number; h?: number }[],
     maxX = Math.max(maxX, it.x + (it.w ?? 0))
     maxY = Math.max(maxY, it.y + (it.h ?? 0))
   }
-  // 單一項目（或內容太小）時避免過度放大
-  const MIN_CONTENT = 150
+  // bbox 過小間名除以零／極端值
+  const MIN_CONTENT = 100
   const bw = Math.max(maxX - minX, MIN_CONTENT)
   const bh = Math.max(maxY - minY, MIN_CONTENT)
-  const s = Math.min(props.maxScale, Math.max(props.minScale, Math.min(w / bw, h / bh) * padding))
+  const m = opts.margin ?? 48
+  const sFit = Math.min(Math.max(w - m * 2, 1) / bw, Math.max(h - m * 2, 1) / bh)
+  const s = Math.min(props.maxScale, Math.max(props.minScale, Math.min(sFit, opts.maxScale ?? 1.5)))
   scale.value = s
   offsetX.value = w / 2 - ((minX + maxX) / 2) * s
   offsetY.value = h / 2 - ((minY + maxY) / 2) * s
