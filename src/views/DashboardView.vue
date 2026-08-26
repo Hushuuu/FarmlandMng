@@ -130,23 +130,23 @@ onMounted(async () => {
 <template>
   <div class="page">
     <n-spin :show="loading">
-      <h1 class="page-title">Dashboard</h1>
+      <h1 class="page-title">總覽</h1>
 
       <!-- 系統總覽（§13.1） -->
       <n-grid cols="2 s:3 m:6" x-gap="8" y-gap="8" responsive="screen">
         <n-gi><n-card size="small"><div class="stat-label">果園</div><div class="stat-value">{{ counts.orchards }}</div></n-card></n-gi>
         <n-gi><n-card size="small"><div class="stat-label">區域</div><div class="stat-value">{{ counts.areas }}</div></n-card></n-gi>
         <n-gi><n-card size="small"><div class="stat-label">果樹</div><div class="stat-value">{{ counts.trees }}</div></n-card></n-gi>
-        <n-gi><n-card size="small"><div class="stat-label warn">今日到期</div><div class="stat-value warn">{{ todayTasks.length }}</div></n-card></n-gi>
-        <n-gi><n-card size="small"><div class="stat-label info">即將到期</div><div class="stat-value info">{{ upcomingTasks.length }}</div></n-card></n-gi>
+        <n-gi><n-card size="small"><div class="stat-label warn">今日任務</div><div class="stat-value warn">{{ todayTasks.length }}</div></n-card></n-gi>
+        <n-gi><n-card size="small"><div class="stat-label info">即將到來</div><div class="stat-value info">{{ upcomingTasks.length }}</div></n-card></n-gi>
         <n-gi><n-card size="small"><div class="stat-label err">逾期</div><div class="stat-value err">{{ overdueTasks.length }}</div></n-card></n-gi>
       </n-grid>
 
       <!-- 任務警示（§16：優先顯示 今日 → 逾期 → 即將到期） -->
       <template v-for="section in [
-          { title: `今日到期任務（${todayTasks.length}）`, list: todayTasks },
+          { title: `今日任務（${todayTasks.length}）`, list: todayTasks },
           { title: `逾期任務（${overdueTasks.length}）`, list: overdueTasks },
-          { title: `即將到期任務（${upcomingTasks.length}）`, list: upcomingTasks },
+          { title: `即將到來任務（${upcomingTasks.length}）`, list: upcomingTasks },
         ]"
         :key="section.title"
       >
@@ -194,7 +194,7 @@ onMounted(async () => {
               <span class="muted">逾期</span> {{ orchardCounts(os.orchard.id).overdue }}
             </div>
           </div>
-          <div class="muted oc-hint">點擊查看區域與任務執行狀況</div>
+          <!-- <div class="muted oc-hint">點擊查看區域與任務執行狀況</div> -->
         </n-card>
         <n-card v-if="!orchardStats.length" size="small">
           <div class="muted">還沒有果園，先到「果園列表」建立一個吧。</div>
@@ -204,14 +204,14 @@ onMounted(async () => {
       <n-drawer v-model:show="showOrchardDetail" placement="right" :width="420">
         <n-drawer-content
           v-if="selectedOrchard"
-          :title="`${selectedOrchard.orchard.name} · 狀況`"
+          :title="`${selectedOrchard.orchard.name}`"
           closable
         >
           <div class="detail-head">
             <div class="muted">
               {{ selectedOrchard.areaCount }} 個區域 · {{ selectedOrchard.treeCount }} 棵果樹
             </div>
-            <n-button size="small" secondary type="primary" @click="openSelectedOrchardMap">進入果園地圖</n-button>
+            <n-button size="small" secondary type="primary" @click="openSelectedOrchardMap">進入地圖</n-button>
           </div>
 
           <n-card
@@ -221,8 +221,8 @@ onMounted(async () => {
           >
             <div class="area-detail-head">
               <div>
-                <div class="area-detail-name">果園層級任務</div>
-                <div class="muted">套用整座果園的任務</div>
+                <div class="area-detail-name">果園任務</div>
+                <!-- <div class="muted">套用整座果園的任務</div> -->
               </div>
               <span class="settled">已結算 {{ orchardSettledCount(selectedOrchard.orchard.id) }} 次</span>
             </div>

@@ -34,15 +34,15 @@
 
 建立一套以「果園空間配置」與「農務任務管理」為核心的 Web 系統，用於管理：
 
-* 多個果園
-* 果園內多個區域
-* 區域內果樹的實際配置位置
-* 果樹類型
-* 農務任務
-* 任務週期
-* 任務執行紀錄
-* 任務逾期與即將到期狀態
-* 果園與區域整體狀況
+- 多個果園
+- 果園內多個區域
+- 區域內果樹的實際配置位置
+- 果樹類型
+- 農務任務
+- 任務週期
+- 任務執行紀錄
+- 任務逾期與即將到期狀態
+- 果園與區域整體狀況
 
 系統主要以手機瀏覽與操作為主，同時兼容桌面瀏覽器。
 
@@ -52,17 +52,17 @@
 
 ## 2.1 Frontend
 
-| 項目               | 技術                      |
-| ---------------- | ----------------------- |
-| Framework        | Vue 3                   |
-| Build Tool       | Vite                    |
-| Language         | JavaScript              |
+| 項目             | 技術                         |
+| ---------------- | ---------------------------- |
+| Framework        | Vue 3                        |
+| Build Tool       | Vite                         |
+| Language         | JavaScript                   |
 | UI Framework     | Naive UI / Vuetify（二選一） |
-| Routing          | Vue Router              |
-| State Management | Pinia                   |
-| CSS              | 原生 CSS                  |
-| Backend SDK      | Supabase JS             |
-| Responsive       | Mobile First            |
+| Routing          | Vue Router                   |
+| State Management | Pinia                        |
+| CSS              | 原生 CSS                     |
+| Backend SDK      | Supabase JS                  |
+| Responsive       | Mobile First                 |
 
 不使用傳統後端 API Server。
 
@@ -95,24 +95,24 @@ Browser
 
 需要支援：
 
-* Android Chrome
-* iPhone Safari
-* iPad
-* Desktop Chrome
-* Desktop Edge
+- Android Chrome
+- iPhone Safari
+- iPad
+- Desktop Chrome
+- Desktop Edge
 
 ## 3.2 Mobile First
 
 主要操作必須可以在手機上完成：
 
-* 查看果園
-* 查看區域
-* 查看果樹
-* 編輯果樹位置
-* 新增 / 修改 / 刪除資料
-* 查看待執行任務
-* 執行任務
-* 查看任務歷史
+- 查看果園
+- 查看區域
+- 查看果樹
+- 編輯果樹位置
+- 新增 / 修改 / 刪除資料
+- 查看待執行任務
+- 執行任務
+- 查看任務歷史
 
 ---
 
@@ -149,12 +149,12 @@ Orchard
 
 不使用：
 
-* GPS
-* Latitude
-* Longitude
-* GIS
-* Google Maps
-* 衛星地圖
+- GPS
+- Latitude
+- Longitude
+- GIS
+- Google Maps
+- 衛星地圖
 
 ---
 
@@ -166,14 +166,14 @@ Orchard
 
 使用者可以：
 
-* Pan
-* Zoom
-* 點擊物件
-* 選取物件
-* 進入下一層
-* 返回上一層
-* 編輯位置
-* 拖曳果樹
+- Pan
+- Zoom
+- 點擊物件
+- 選取物件
+- 進入下一層
+- 返回上一層
+- 編輯位置
+- 拖曳果樹
 
 概念：
 
@@ -282,11 +282,11 @@ Grid
 
 支援：
 
-* 單指拖曳地圖
-* 雙指縮放
-* 點擊 Area
-* 點擊 Tree
-* 顯示物件資訊
+- 單指拖曳地圖
+- 雙指縮放
+- 點擊 Area
+- 點擊 Tree
+- 顯示物件資訊
 
 ---
 
@@ -296,13 +296,13 @@ Grid
 
 支援：
 
-* 拖曳 Area
-* 拖曳 Tree
-* 新增 Area
-* 新增 Tree
-* 刪除 Area
-* 刪除 Tree
-* 編輯物件資訊
+- 拖曳 Area
+- 拖曳 Tree
+- 新增 Area
+- 新增 Tree
+- 刪除 Area
+- 刪除 Tree
+- 編輯物件資訊
 
 手機上建議：
 
@@ -458,7 +458,7 @@ B區
 ```text
 正常
 即將到期
-今日到期
+今日任務
 逾期
 已完成
 停用
@@ -467,7 +467,7 @@ B區
 Dashboard 優先顯示：
 
 ```text
-今日到期
+今日任務
 逾期
 即將到期
 ```
@@ -1493,9 +1493,9 @@ Mobile：
 
 改成：
 
-* Bottom Navigation
-* Drawer
-* Bottom Sheet
+- Bottom Navigation
+- Drawer
+- Bottom Sheet
 
 ---
 

@@ -9,8 +9,8 @@ export const TREE_STATUS_META: Record<TreeStatus, { label: string; color: string
 
 export const DUE_STATUS_META: Record<DueStatus, { label: string; type: 'error' | 'warning' | 'info' | 'default' }> = {
   OVERDUE: { label: '逾期', type: 'error' },
-  DUE_TODAY: { label: '今日到期', type: 'warning' },
-  UPCOMING: { label: '即將到期', type: 'info' },
+  DUE_TODAY: { label: '今日任務', type: 'warning' },
+  UPCOMING: { label: '即將到來', type: 'info' },
   FUTURE: { label: '排程中', type: 'default' },
 }
 

@@ -10,7 +10,7 @@ const router = createRouter({
       component: () => import('../views/LoginView.vue'),
       meta: { public: true, title: '登入' },
     },
-    { path: '/', name: 'dashboard', component: () => import('../views/DashboardView.vue'), meta: { title: 'Dashboard' } },
+    { path: '/', name: 'dashboard', component: () => import('../views/DashboardView.vue'), meta: { title: '總覽' } },
     { path: '/orchards', name: 'orchard-list', component: () => import('../views/OrchardListView.vue'), meta: { title: '果園列表' } },
     {
       path: '/orchards/:orchardId/map',
