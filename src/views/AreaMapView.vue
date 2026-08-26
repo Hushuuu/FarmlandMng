@@ -314,7 +314,7 @@ onMounted(async () => {
     }
     await treeStore.loadTrees(areaId)
     await nextTick()
-    canvasRef.value?.ensureFit()
+    focusOnTrees()
   } catch (e) {
     message.error(e instanceof Error ? e.message : '載入失敗')
   } finally {
@@ -323,8 +323,15 @@ onMounted(async () => {
   window.addEventListener('resize', onResize)
 })
 
+/** 定位到所有果樹的範圍（沒有果樹時退回全圖 fit） */
+function focusOnTrees() {
+  canvasRef.value?.focusContent(
+    treeStore.trees.map((t) => ({ x: Number(t.position_x), y: Number(t.position_y) })),
+  )
+}
+
 function onResize() {
-  canvasRef.value?.fit()
+  focusOnTrees()
 }
 onBeforeUnmount(() => window.removeEventListener('resize', onResize))
 

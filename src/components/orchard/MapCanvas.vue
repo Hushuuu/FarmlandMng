@@ -18,7 +18,6 @@ const offsetY = defineModel<number>('offsetY', { default: 0 })
 const emit = defineEmits<{ tap: [] }>()
 
 const vp = ref<HTMLElement | null>(null)
-let fitted = false
 
 interface P {
   x: number
@@ -48,6 +47,34 @@ function fit(padding = 0.92) {
   scale.value = s
   offsetX.value = (w - props.width * s) / 2
   offsetY.value = (h - props.height * s) / 2
+}
+
+/** 內容 bbox：縮放平移讓所有項目落在視野內（無項目則退回全圖 fit） */
+function focusContent(items: { x: number; y: number; w?: number; h?: number }[], padding = 0.5) {
+  if (!items.length) {
+    fit()
+    return
+  }
+  const { w, h } = vpSize()
+  if (!w || !h) return
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const it of items) {
+    minX = Math.min(minX, it.x)
+    minY = Math.min(minY, it.y)
+    maxX = Math.max(maxX, it.x + (it.w ?? 0))
+    maxY = Math.max(maxY, it.y + (it.h ?? 0))
+  }
+  // 單一項目（或內容太小）時避免過度放大
+  const MIN_CONTENT = 150
+  const bw = Math.max(maxX - minX, MIN_CONTENT)
+  const bh = Math.max(maxY - minY, MIN_CONTENT)
+  const s = Math.min(props.maxScale, Math.max(props.minScale, Math.min(w / bw, h / bh) * padding))
+  scale.value = s
+  offsetX.value = w / 2 - ((minX + maxX) / 2) * s
+  offsetY.value = h / 2 - ((minY + maxY) / 2) * s
 }
 
 function zoomAt(factor: number, cx: number, cy: number) {
@@ -148,18 +175,13 @@ onBeforeUnmount(() => {
   detachWindow()
 })
 
-defineExpose({ fit, zoomIn: () => {
+defineExpose({ fit, focusContent, zoomIn: () => {
   const { w, h } = vpSize()
   zoomAt(1.25, w / 2, h / 2)
 }, zoomOut: () => {
   const { w, h } = vpSize()
   zoomAt(1 / 1.25, w / 2, h / 2)
-}, centerVirtual, ensureFit: () => {
-  if (!fitted) {
-    fitted = true
-    fit()
-  }
-} })
+}, centerVirtual })
 </script>
 
 <template>

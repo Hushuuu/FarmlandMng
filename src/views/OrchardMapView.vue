@@ -307,7 +307,7 @@ onMounted(async () => {
     await loadTaskStats()
 
     await nextTick()
-    canvasRef.value?.ensureFit()
+    focusOnAreas()
   } catch (e) {
     message.error(e instanceof Error ? e.message : '載入失敗')
   } finally {
@@ -317,8 +317,20 @@ onMounted(async () => {
   window.addEventListener('resize', onResize)
 })
 
+/** 定位到所有區域的範圍（沒有區域時退回全圖 fit） */
+function focusOnAreas() {
+  canvasRef.value?.focusContent(
+    areaStore.areas.map((a) => ({
+      x: Number(a.position_x),
+      y: Number(a.position_y),
+      w: Number(a.width),
+      h: Number(a.height),
+    })),
+  )
+}
+
 function onResize() {
-  canvasRef.value?.fit()
+  focusOnAreas()
 }
 onBeforeUnmount(() => window.removeEventListener('resize', onResize))
 
