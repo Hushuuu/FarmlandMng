@@ -201,7 +201,7 @@ onMounted(async () => {
         </n-card>
       </div>
 
-      <n-drawer v-model:show="showOrchardDetail" placement="right" :width="420">
+      <n-drawer v-model:show="showOrchardDetail" placement="right" width="min(420px, 100vw)">
         <n-drawer-content
           v-if="selectedOrchard"
           :title="`${selectedOrchard.orchard.name}`"
@@ -446,4 +446,5 @@ onMounted(async () => {
 .err {
   color: #d03050;
 }
+
 </style>

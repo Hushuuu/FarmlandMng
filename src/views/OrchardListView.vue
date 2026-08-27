@@ -262,7 +262,7 @@ onMounted(() => store.loadOrchards(true))
       </n-form>
     </n-modal>
 
-    <n-drawer v-model:show="showDetail" placement="right" :width="420">
+    <n-drawer v-model:show="showDetail" placement="right" width="min(420px, 100vw)">
       <n-drawer-content v-if="selected" :title="selected.name" closable>
         <n-spin :show="detailLoading">
           <div class="detail-head">
@@ -469,4 +469,5 @@ onMounted(() => store.loadOrchards(true))
 .warn {
   color: #f0a020;
 }
+
 </style>

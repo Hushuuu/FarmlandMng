@@ -197,7 +197,7 @@ function closeSheet() {
   <n-drawer
     :show="show"
     placement="bottom"
-    height="88%"
+    height="95%"
     :auto-focus="false"
     @update:show="(value: boolean) => { if (!value) closeSheet() }"
   >
