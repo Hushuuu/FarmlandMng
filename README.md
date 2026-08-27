@@ -38,6 +38,33 @@ VITE_MANAGEMENT_PASSWORD=<管理模式密碼>
 
 > 若要開放註冊，請確認 Supabase Auth → Providers → Email 已啟用，並關閉 `Confirm email`。關閉後註冊不會寄送驗證信，且使用者可直接登入；這項 Auth 設定需在 Supabase Dashboard 修改，無法由前端 anon key 設定。
 
+## 資料庫備份（Supabase CLI）
+
+本專案已納入 Supabase CLI，建議把它作為 Dashboard 備份之外的手動／異地備份方式。Supabase Pro、Team、Enterprise 方案另有每日備份；若需要更細的復原時間點，可在 Dashboard 啟用 PITR。CLI 備份是邏輯備份，不能取代正式方案的自動備份。
+
+第一次在新電腦使用時，先登入並連結專案：
+
+```bash
+npx supabase login
+npx supabase link --project-ref <你的專案 ref>
+```
+
+在 CI 或其他非互動環境，可設定 `SUPABASE_ACCESS_TOKEN` 取代 `npx supabase login`；這個 token 只負責 CLI／Management API 認證，不能取代 PostgreSQL 的 Database Password。
+
+建立備份：
+
+```bash
+npm run db:backup
+```
+
+執行前請先啟動 Docker Desktop，因為 CLI 會透過 Docker 執行 `pg_dump`。備份會建立在 `backups/supabase/<時間戳>/`，包含 `roles.sql`、`schema.sql`、`data.sql` 與 `manifest.json`。CLI 若要求密碼，請輸入 Supabase Database Password；不要把密碼或備份檔提交到 Git。若要在 CI 等非互動環境執行，可在執行期間提供 `SUPABASE_DB_PASSWORD` 環境變數。預覽實際命令但不連線可使用：
+
+```bash
+npm run db:backup -- --dry-run
+```
+
+還原時依 `manifest.json` 的順序使用 `psql` 匯入三個 SQL 檔。Supabase Storage 的實體檔案不包含在資料庫備份內；本專案目前將果樹圖示以 data URL 儲存在資料庫，因此會隨 `data.sql` 備份。
+
 ## 指令
 
 ```bash
@@ -45,6 +72,7 @@ npm run dev        # 開發伺服器
 npm run build      # 生產建置
 npm run preview    # 預覽建置結果
 npm run typecheck  # vue-tsc 型別檢查
+npm run db:backup  # 建立 Supabase 邏輯備份
 ```
 
 ## 核心模型
