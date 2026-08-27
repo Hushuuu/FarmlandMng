@@ -15,6 +15,7 @@ const props = defineProps<{
 const emit = defineEmits<{ execute: []; reschedule: [] }>()
 
 const running = computed(() => !!props.info.runningBatchId)
+const overdue = computed(() => props.info.dueStatus === 'OVERDUE')
 </script>
 
 <template>
@@ -43,7 +44,9 @@ const running = computed(() => !!props.info.runningBatchId)
     </div>
 
     <div class="card-action">
-      <n-button v-if="allowReschedule" size="small" quaternary @click="emit('reschedule')">調整預計日</n-button>
+      <n-button v-if="allowReschedule" size="small" quaternary @click="emit('reschedule')">
+        {{ running ? '調整本輪日期' : overdue ? '展延本輪日期' : '調整預計日' }}
+      </n-button>
       <n-button type="primary" :loading="loading" @click="emit('execute')">
         {{ running ? '繼續執行' : '執行任務' }}
       </n-button>

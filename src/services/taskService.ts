@@ -461,6 +461,31 @@ export async function startExecution(assignmentId: string): Promise<ExecutionBat
   return batch as ExecutionBatch
 }
 
+/** 調整進行中批次的本輪預計執行日期。 */
+export async function updateBatchScheduledDate(
+  batchId: string,
+  scheduledDate: string,
+): Promise<void> {
+  const { data: batch, error: batchError } = await supabase
+    .from('task_execution_batches')
+    .select('id, status')
+    .eq('id', batchId)
+    .maybeSingle()
+  if (batchError) throw batchError
+  if (!batch) throw new Error('找不到執行批次')
+  if (batch.status !== 'IN_PROGRESS') throw new Error('只有執行中的批次可以調整本輪日期')
+
+  const { data: updated, error } = await supabase
+    .from('task_execution_batches')
+    .update({ scheduled_date: scheduledDate })
+    .eq('id', batchId)
+    .eq('status', 'IN_PROGRESS')
+    .select('id')
+    .maybeSingle()
+  if (error) throw error
+  if (!updated) throw new Error('本輪執行狀態已變更，請重新整理後再試')
+}
+
 export async function getBatchWithItems(batchId: string): Promise<{
   batch: ExecutionBatch
   items: (ExecutionItem & { tree: Tree | null })[]
@@ -553,12 +578,32 @@ export async function finishBatch(batchId: string): Promise<void> {
   if (nextDateError) throw nextDateError
 }
 
+/** 重置進行中的本輪：刪除批次與逐樹明細，並清除本輪展延日期。 */
 export async function cancelBatch(batchId: string): Promise<void> {
-  const { error } = await supabase
+  const { data: batch, error: batchError } = await supabase
     .from('task_execution_batches')
-    .update({ status: 'CANCELLED' })
+    .select('id, task_assignment_id, status')
     .eq('id', batchId)
+    .maybeSingle()
+  if (batchError) throw batchError
+  if (!batch) throw new Error('找不到執行批次')
+  if (batch.status !== 'IN_PROGRESS') throw new Error('只有進行中的批次可以重置')
+
+  const { data: deleted, error } = await supabase
+    .from('task_execution_batches')
+    .delete()
+    .eq('id', batchId)
+    .eq('status', 'IN_PROGRESS')
+    .select('id')
+    .maybeSingle()
   if (error) throw error
+  if (!deleted) throw new Error('本輪執行狀態已變更，請重新整理後再試')
+
+  const { error: assignmentError } = await supabase
+    .from('task_assignments')
+    .update({ next_start_date: null })
+    .eq('id', batch.task_assignment_id)
+  if (assignmentError) throw assignmentError
 }
 
 /** 撤銷結算，保留逐樹進度並恢復為可繼續執行。 */

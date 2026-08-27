@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { NButton, NDatePicker, NForm, NFormItem, NModal, useMessage } from 'naive-ui'
-import { assignmentService } from '../../services/taskService'
+import { assignmentService, updateBatchScheduledDate } from '../../services/taskService'
 import type { PendingTaskInfo } from '../../types/database'
-import { parseDate, toDateStr } from '../../utils/date'
+import { parseDate, todayStr, toDateStr } from '../../utils/date'
 
 const props = defineProps<{
   show: boolean
@@ -18,6 +18,17 @@ const emit = defineEmits<{
 const message = useMessage()
 const date = ref<number | null>(null)
 const saving = ref(false)
+const runningRound = computed(() => !!props.info?.runningBatchId)
+const overdueRound = computed(
+  () => !runningRound.value && props.info?.dueStatus === 'OVERDUE',
+)
+const modalTitle = computed(() =>
+  runningRound.value
+    ? '調整本輪執行日期'
+    : overdueRound.value
+      ? '展延本輪預計日期'
+      : '調整下一輪預計開始日',
+)
 
 watch(
   () => [props.show, props.info] as const,
@@ -32,18 +43,36 @@ async function save() {
   const info = props.info
   if (!info) return
 
-  const nextDate = date.value === null ? null : toDateStr(new Date(date.value))
-  if (nextDate && info.lastCompletedDate && nextDate <= info.lastCompletedDate) {
+  const selectedDate = date.value === null ? null : toDateStr(new Date(date.value))
+  if (runningRound.value) {
+    if (!selectedDate) {
+      message.warning('本輪執行日期不可清除')
+      return
+    }
+  } else if (overdueRound.value && selectedDate && selectedDate < todayStr()) {
+    message.warning('展延日期需為今天或之後')
+    return
+  } else if (selectedDate && info.lastCompletedDate && selectedDate <= info.lastCompletedDate) {
     message.warning(`下一輪預計開始日需晚於上次結算日（${info.lastCompletedDate}）`)
     return
   }
 
   saving.value = true
   try {
-    await assignmentService.update(info.assignment.id, { next_start_date: nextDate })
+    if (runningRound.value) {
+      await updateBatchScheduledDate(info.runningBatchId!, selectedDate!)
+    } else {
+      await assignmentService.update(info.assignment.id, { next_start_date: selectedDate })
+    }
     emit('update:show', false)
     emit('saved')
-    message.success('下一輪預計開始日已更新')
+    message.success(
+      runningRound.value
+        ? '本輪執行日期已更新'
+        : overdueRound.value
+          ? '本輪預計日期已展延'
+          : '下一輪預計開始日已更新',
+    )
   } catch (e) {
     message.error(e instanceof Error ? e.message : '更新日期失敗')
   } finally {
@@ -56,7 +85,7 @@ async function save() {
   <n-modal
     :show="show"
     preset="card"
-    title="調整下一輪預計開始日"
+    :title="modalTitle"
     style="max-width: 400px"
     @update:show="(value: boolean) => emit('update:show', value)"
   >
@@ -64,10 +93,25 @@ async function save() {
       {{ info.task.name }} · {{ info.targetPath }}
     </div>
     <n-form label-placement="top">
-      <n-form-item label="下一輪預計開始日" required>
-        <n-date-picker v-model:value="date" type="date" clearable style="width: 100%" />
+      <n-form-item
+        :label="
+          runningRound
+            ? '本輪執行日期'
+            : overdueRound
+              ? '本輪預計日期'
+              : '下一輪預計開始日'
+        "
+        :required="runningRound"
+      >
+        <n-date-picker v-model:value="date" type="date" :clearable="!runningRound" style="width: 100%" />
       </n-form-item>
-      <div v-if="info?.lastCompletedDate" class="muted hint">
+      <div v-if="runningRound" class="muted hint">
+        只會調整目前進行中批次的日期，不會變更下一輪排程。
+      </div>
+      <div v-else-if="overdueRound" class="muted hint">
+        這是目前尚未開始的本輪任務；展延日期需為今天或之後。
+      </div>
+      <div v-else-if="info?.lastCompletedDate" class="muted hint">
         上次結算：{{ info.lastCompletedDate }}；下一輪不可排在同一天。
       </div>
       <n-button block type="primary" :loading="saving" @click="save">儲存</n-button>

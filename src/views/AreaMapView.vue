@@ -434,7 +434,9 @@ function goBack() {
             <span class="rt-name">{{ p.task.name }}</span>
             <span class="muted">{{ formatDate(p.dueDate) }}</span>
             <due-status-tag :status="p.dueStatus" />
-            <n-button size="tiny" quaternary @click="openReschedule(p)">調整日期</n-button>
+            <n-button size="tiny" quaternary @click="openReschedule(p)">
+              {{ p.runningBatchId ? '調整本輪日期' : p.dueStatus === 'OVERDUE' ? '展延本輪日期' : '調整日期' }}
+            </n-button>
             <n-button
               size="tiny"
               type="primary"

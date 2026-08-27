@@ -33,12 +33,12 @@ const pendingCount = computed(() => total.value - doneCount.value)
 /** 清單篩選 */
 type ListFilter = 'ALL' | 'OPEN' | 'DONE'
 const filter = ref<ListFilter>('ALL')
-const viewMode = ref<'LIST' | 'MAP'>('LIST')
+const viewMode = ref<'LIST' | 'MAP'>('MAP')
 
 watch(
   () => store.activeBatch?.id,
   () => {
-    viewMode.value = 'LIST'
+    viewMode.value = 'MAP'
     filter.value = 'ALL'
   },
 )
@@ -174,7 +174,7 @@ function confirmFinish() {
 function confirmReset() {
   dialog.warning({
     title: '重置本輪',
-    content: '重置後本輪進度會清除並重新回到待執行，不會計入週期。確定重置？',
+    content: '重置後本輪執行批次、逐樹進度與本輪展延日期都會刪除，並依原週期重新回到待執行。確定重置？',
     positiveText: '重置本輪',
     negativeText: '返回',
     onPositiveClick: async () => {
@@ -245,11 +245,11 @@ function closeSheet() {
             <task-execution-map v-if="viewMode === 'MAP'" :items="store.activeItems" />
 
             <template v-else>
-              <div class="list-filter">
+              <!-- <div class="list-filter">
                 <button :class="{ on: filter === 'ALL' }" @click="filter = 'ALL'">全部 {{ total }}</button>
                 <button :class="{ on: filter === 'OPEN' }" @click="filter = 'OPEN'">未處理 {{ openItems.length }}</button>
                 <button :class="{ on: filter === 'DONE' }" @click="filter = 'DONE'">已處理 {{ doneCount }}</button>
-              </div>
+              </div> -->
 
               <div class="item-list">
                 <div
