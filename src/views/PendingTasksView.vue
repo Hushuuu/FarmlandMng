@@ -52,7 +52,7 @@ onMounted(refresh)
     <n-tabs v-model:value="tab" type="segment" size="small" animated>
       <n-tab name="ALL">全部（{{ store.pending.length }}）</n-tab>
       <n-tab name="DUE_TODAY">今日（{{ store.todayCount }}）</n-tab>
-      <n-tab name="UPCOMING">即將到期（{{ store.upcomingCount }}）</n-tab>
+      <n-tab name="UPCOMING">即將到來（{{ store.upcomingCount }}）</n-tab>
       <n-tab name="OVERDUE">逾期（{{ store.overdueCount }}）</n-tab>
     </n-tabs>
 

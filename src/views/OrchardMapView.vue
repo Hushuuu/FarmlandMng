@@ -436,7 +436,7 @@ function enterArea() {
             <div class="v warn">{{ statOf(selected.id).today }}</div>
           </div>
           <div class="cell">
-            <div class="muted">即將到期</div>
+            <div class="muted">即將到來</div>
             <div class="v info">{{ statOf(selected.id).upcoming }}</div>
           </div>
           <div class="cell">
@@ -456,8 +456,8 @@ function enterArea() {
             <span class="rt-name">{{ p.task.name }}</span>
             <span class="muted">{{ p.treeCount }} 棵 · {{ formatDate(p.dueDate) }}</span>
             <due-status-tag :status="p.dueStatus" />
-            <n-button size="tiny" quaternary @click="openReschedule(p)">
-              {{ p.runningBatchId ? '調整本輪日期' : p.dueStatus === 'OVERDUE' ? '展延本輪日期' : '調整日期' }}
+            <n-button size="tiny"  @click="openReschedule(p)">
+              {{ p.runningBatchId ? '展延日期' : p.dueStatus === 'OVERDUE' ? '展延日期' : '調整日期' }}
             </n-button>
             <n-button
               size="tiny"

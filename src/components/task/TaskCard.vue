@@ -44,10 +44,10 @@ const overdue = computed(() => props.info.dueStatus === 'OVERDUE')
     </div>
 
     <div class="card-action">
-      <n-button v-if="allowReschedule" size="small" quaternary @click="emit('reschedule')">
-        {{ running ? '調整本輪日期' : overdue ? '展延本輪日期' : '調整預計日' }}
+      <n-button v-if="allowReschedule" size="small" @click="emit('reschedule')">
+        {{ running ? '展延日期' : overdue ? '展延日期' : '展延預計日' }}
       </n-button>
-      <n-button type="primary" :loading="loading" @click="emit('execute')">
+      <n-button type="primary" :loading="loading" size="small" @click="emit('execute')">
         {{ running ? '繼續執行' : '執行任務' }}
       </n-button>
     </div>
