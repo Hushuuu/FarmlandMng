@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { NButton, NEmpty, NSpin, useMessage } from 'naive-ui'
 import MapCanvas from '../orchard/MapCanvas.vue'
 import MapControls from '../orchard/MapControls.vue'
@@ -103,6 +103,32 @@ function statusDot(status: ItemStatus): string | null {
   return itemStatusColors[status]
 }
 
+function focusOnAreas() {
+  mapCanvas.value?.focusContent(
+    areas.value.map((area) => ({
+      x: Number(area.position_x),
+      y: Number(area.position_y),
+      w: Number(area.width),
+      h: Number(area.height),
+    })),
+  )
+}
+
+function focusOnTrees() {
+  mapCanvas.value?.focusContent(
+    visibleTreeItems.value.map((item) => ({
+      x: Number(item.tree.position_x),
+      y: Number(item.tree.position_y),
+    })),
+  )
+}
+
+async function focusCurrentLevel() {
+  await nextTick()
+  if (mapLevel.value === 'AREAS') focusOnAreas()
+  else focusOnTrees()
+}
+
 async function loadMapData() {
   const requestKey = targetKey.value
   loading.value = true
@@ -135,7 +161,7 @@ async function loadMapData() {
     }
     mapLevel.value = 'AREAS'
     await nextTick()
-    mapCanvas.value?.fit()
+    focusOnAreas()
   } catch (error) {
     if (targetKey.value !== requestKey) return
     areas.value = []
@@ -154,14 +180,16 @@ watch(targetKey, () => {
 async function enterArea(areaId: string) {
   activeAreaId.value = areaId
   mapLevel.value = 'TREES'
-  await nextTick()
-  mapCanvas.value?.fit()
+  await focusCurrentLevel()
 }
 
 async function showAreas() {
   mapLevel.value = 'AREAS'
-  await nextTick()
-  mapCanvas.value?.fit()
+  await focusCurrentLevel()
+}
+
+function onResize() {
+  void focusCurrentLevel()
 }
 
 async function toggleTree(item: MappedExecutionItem) {
@@ -191,6 +219,14 @@ async function toggleArea(areaId: string) {
     updating.value = false
   }
 }
+
+onMounted(() => {
+  window.addEventListener('resize', onResize)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', onResize)
+})
 </script>
 
 <template>
