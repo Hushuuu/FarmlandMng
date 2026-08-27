@@ -63,6 +63,17 @@ npm run db:backup -- --dry-run
 
 還原時依 `manifest.json` 的順序使用 `psql` 匯入三個 SQL 檔。Supabase Storage 的實體檔案不包含在資料庫備份內；本專案目前將果樹圖示以 data URL 儲存在資料庫，因此會隨 `data.sql` 備份。
 
+## GitHub Pages 部署
+
+`.github/workflows/github-pages.yml` 會在 `prod` 分支更新時自動部署，也可以從 `Actions → Deploy to GitHub Pages → Run workflow` 手動觸發。
+
+第一次使用前，到 repository 的 `Settings → Pages` 將 `Build and deployment → Source` 設為 `GitHub Actions`，再到 `Settings → Environments` 建立名為 `github-pages` 的 Environment，並設定：
+
+- Variables 或 Secrets：`VITE_SUPABASE_URL`、`VITE_SUPABASE_ANON_KEY`
+- Variable 或 Secret：`VITE_MANAGEMENT_PASSWORD`（選填）
+
+`VITE_*` 會被編譯進前端，包含管理密碼也不是伺服器端安全機制。部署網址通常是 `https://<帳號>.github.io/FarmlandMng/`。
+
 ## 指令
 
 ```bash
