@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { ItemStatus } from '../../types/database'
+import TypeIcon from './TypeIcon.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -100,7 +101,7 @@ const checkSymbol = computed(() => {
       {{ checkSymbol }}
     </button>
     <div class="tree-dot" :style="{ borderColor: color ?? '#2f9e63' }">
-      <span class="tree-icon">{{ icon }}</span>
+      <TypeIcon :icon="icon" :size="20" />
       <span v-if="statusDot" class="status-dot" :style="{ background: statusDot }" />
     </div>
     <div class="tree-label">{{ label }}</div>
@@ -179,12 +180,6 @@ const checkSymbol = computed(() => {
 .check-button.state-failed {
   border-color: #d03050;
   background: #d03050;
-}
-
-.tree-icon {
-  font-size: 19px;
-  line-height: 1;
-  pointer-events: none;
 }
 
 .status-dot {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import {
   NButton,
   NCard,
@@ -16,8 +16,10 @@ import {
   useDialog,
   useMessage,
 } from 'naive-ui'
+import TypeIcon from '../components/orchard/TypeIcon.vue'
 import { useMasterStore } from '../stores/tree'
 import { genCode } from '../utils/code'
+import { fileToIconDataUrl, isImageIcon } from '../utils/icon'
 import type { TreeType } from '../types/database'
 import { useManagementStore } from '../stores/management'
 
@@ -30,6 +32,8 @@ const loading = ref(false)
 const showForm = ref(false)
 const editing = ref<TreeType | null>(null)
 const saving = ref(false)
+const compressing = ref(false)
+const fileInput = ref<HTMLInputElement | null>(null)
 const form = ref({
   code: '',
   name: '',
@@ -39,6 +43,31 @@ const form = ref({
   sort_order: 0,
   active: true,
 })
+
+const iconIsImage = computed(() => isImageIcon(form.value.icon))
+
+function pickIconFile() {
+  fileInput.value?.click()
+}
+
+async function onPickIcon(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  compressing.value = true
+  try {
+    form.value.icon = await fileToIconDataUrl(file)
+  } catch (err) {
+    message.error(err instanceof Error ? err.message : '圖檔處理失敗')
+  } finally {
+    compressing.value = false
+  }
+}
+
+function resetIcon() {
+  form.value.icon = '🌳'
+}
 
 function openCreate() {
   editing.value = null
@@ -130,7 +159,7 @@ onMounted(async () => {
         <n-card v-for="t in masterStore.treeTypes" :key="t.id" size="small">
           <div class="row-main">
             <div class="icon-badge" :style="{ background: `${t.color}22`, borderColor: t.color ?? '#ccc' }">
-              {{ t.icon }}
+              <TypeIcon :icon="t.icon" :size="22" />
             </div>
             <div class="info">
               <div class="name">
@@ -159,14 +188,31 @@ onMounted(async () => {
         <n-form-item label="說明">
           <n-input v-model:value="form.description" type="textarea" :rows="2" />
         </n-form-item>
-        <div class="pair-row">
-          <n-form-item label="圖示（地圖用）">
-            <n-input v-model:value="form.icon" placeholder="🌳" />
-          </n-form-item>
-          <n-form-item label="顏色">
-            <n-color-picker v-model:value="form.color" :swatches="['#4caf50', '#f0a020', '#2080f0', '#d03050', '#7b8085']" />
-          </n-form-item>
-        </div>
+        <n-form-item label="圖示（地圖用）">
+          <div class="icon-editor">
+            <div class="icon-badge preview" :style="{ background: `${form.color}22`, borderColor: form.color ?? '#ccc' }">
+              <TypeIcon :icon="form.icon" :size="22" />
+            </div>
+            <input
+              ref="fileInput"
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              class="file-hidden"
+              @change="onPickIcon"
+            />
+            <n-button size="small" :loading="compressing" @click="pickIconFile">上傳圖檔</n-button>
+            <n-button v-if="iconIsImage" size="small" quaternary @click="resetIcon">改回 emoji</n-button>
+          </div>
+          <n-input
+            v-if="!iconIsImage"
+            v-model:value="form.icon"
+            placeholder="或輸入 emoji，例如 🌳"
+            style="margin-top: 8px"
+          />
+        </n-form-item>
+        <n-form-item label="顏色">
+          <n-color-picker v-model:value="form.color" :swatches="['#4caf50', '#f0a020', '#2080f0', '#d03050', '#7b8085']" />
+        </n-form-item>
         <n-form-item label="排序">
           <n-input-number v-model:value="form.sort_order" style="width: 100%" />
         </n-form-item>
@@ -227,9 +273,18 @@ onMounted(async () => {
   gap: 6px;
 }
 
-.pair-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+.icon-editor {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.icon-badge.preview {
+  width: 40px;
+  height: 40px;
+}
+
+.file-hidden {
+  display: none;
 }
 </style>

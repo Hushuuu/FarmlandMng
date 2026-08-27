@@ -26,6 +26,7 @@ VITE_MANAGEMENT_PASSWORD=<管理模式密碼>
 ## 資料庫建置（一次性）
 
 到 Supabase Dashboard → SQL Editor，執行 `supabase/schema.sql` 全部內容。
+既有資料庫也可再執行一次（`CREATE TABLE IF NOT EXISTS` 不會覆蓋資料）；這次會把 `tree_types.icon` 改成 `text`，才能儲存上傳圖示。
 它會建立：
 
 - 資料表：orchards、areas、trees、tree_types、task_categories、tasks、task_assignments、task_execution_batches、task_execution_items、profiles、system_settings
@@ -60,6 +61,8 @@ Task ─ TaskAssignment（ORCHARD / AREA / TREE + 週期）
 - 一般刪除皆為軟刪除（active = false），歷史紀錄保留（§60）；管理模式可選擇永久刪除
 - 執行歷史中的已結算批次可取消結算，恢復為執行中
 - 區域地圖新增果樹時可一次建立多棵，預設以橫向單列排列
+- 地圖幾何中心（寬/高各一半）有「中心」註記，會隨地圖平移縮放
+- 果樹類型圖示可上傳圖片（前端壓縮後以 data URL 存在 `tree_types.icon`），也可繼續用 emoji
 - 執行任務可切換地圖勾選，在區域總覽整區完成，或進入區域逐棵勾選果樹
 
 ## 主要頁面

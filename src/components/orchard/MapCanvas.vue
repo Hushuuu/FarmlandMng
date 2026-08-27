@@ -7,8 +7,9 @@ const props = withDefaults(
     height: number
     minScale?: number
     maxScale?: number
+    showCenter?: boolean
   }>(),
-  { minScale: 0.08, maxScale: 4 },
+  { minScale: 0.08, maxScale: 4, showCenter: true },
 )
 
 const scale = defineModel<number>('scale', { default: 1 })
@@ -80,7 +81,7 @@ function focusContent(
   const bh = Math.max(maxY - minY, MIN_CONTENT)
   const m = opts.margin ?? 48
   const sFit = Math.min(Math.max(w - m * 2, 1) / bw, Math.max(h - m * 2, 1) / bh)
-  const s = Math.min(props.maxScale, Math.max(props.minScale, Math.min(sFit, opts.maxScale ?? 1.5)))
+  const s = Math.min(props.maxScale, Math.max(props.minScale, Math.min(sFit, opts.maxScale ?? 1.25)))
   scale.value = s
   offsetX.value = w / 2 - ((minX + maxX) / 2) * s
   offsetY.value = h / 2 - ((minY + maxY) / 2) * s
@@ -204,6 +205,21 @@ defineExpose({ fit, focusContent, zoomIn: () => {
       }"
     >
       <slot />
+      <div
+        v-if="showCenter"
+        class="map-center"
+        aria-hidden="true"
+        :style="{
+          left: `${width / 2}px`,
+          top: `${height / 2}px`,
+          transform: `translate(-50%, -50%) scale(${1 / Math.max(scale, 0.01)})`,
+        }"
+      >
+        <span class="map-center-h" />
+        <span class="map-center-v" />
+        <span class="map-center-ring" />
+        <!-- <span class="map-center-label">中心</span> -->
+      </div>
     </div>
   </div>
 </template>
@@ -227,5 +243,62 @@ defineExpose({ fit, focusContent, zoomIn: () => {
   top: 0;
   left: 0;
   transform-origin: 0 0;
+}
+
+.map-center {
+  position: absolute;
+  width: 44px;
+  height: 44px;
+  pointer-events: none;
+  z-index: 6;
+  opacity: 0.75;
+}
+
+.map-center-h,
+.map-center-v {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  background: rgba(24, 160, 88, 0.75);
+}
+
+.map-center-h {
+  width: 22px;
+  height: 2px;
+  transform: translate(-50%, -50%);
+}
+
+.map-center-v {
+  width: 2px;
+  height: 22px;
+  transform: translate(-50%, -50%);
+}
+
+.map-center-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  border: 2px solid rgba(24, 160, 88, 0.95);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.85);
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.5);
+}
+
+.map-center-label {
+  position: absolute;
+  left: 50%;
+  top: calc(50% + 16px);
+  transform: translateX(-50%);
+  padding: 1px 5px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #2f9e63;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: nowrap;
 }
 </style>

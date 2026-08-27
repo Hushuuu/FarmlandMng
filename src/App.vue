@@ -51,7 +51,7 @@ interface MenuGroup {
 const menuGroups = computed<MenuGroup[]>(() => [
   {
     title: '總覽',
-    items: [{ label: 'Dashboard', to: '/', icon: HomeOutlined }],
+    items: [{ label: '儀表板', to: '/', icon: HomeOutlined }],
   },
   {
     title: '果園管理',

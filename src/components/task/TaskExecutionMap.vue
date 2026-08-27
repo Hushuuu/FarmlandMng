@@ -217,6 +217,7 @@ async function toggleArea(areaId: string) {
           v-model:offset-y="offsetY"
           :width="mapWidth"
           :height="mapHeight"
+          :show-center="false"
         >
           <template v-if="mapLevel === 'AREAS'">
             <area-marker

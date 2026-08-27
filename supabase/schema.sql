@@ -66,7 +66,7 @@ create table if not exists public.tree_types (
   code        varchar(50) not null unique,
   name        varchar(100) not null,
   description text,
-  icon        varchar(16) default '🌳',
+  icon        text default '🌳',
   color       varchar(16) default '#4caf50',
   sort_order  integer not null default 0,
   active      boolean not null default true,
@@ -77,6 +77,11 @@ create table if not exists public.tree_types (
 drop trigger if exists trg_tree_types_updated_at on public.tree_types;
 create trigger trg_tree_types_updated_at before update on public.tree_types
   for each row execute function public.set_updated_at();
+
+-- 既有資料庫：圖示改為 text，以支援上傳圖檔（壓縮後的 data URL）
+alter table public.tree_types
+  alter column icon type text,
+  alter column icon set default '🌳';
 
 -- ------------------------------------------------------------
 -- orchards 果園
