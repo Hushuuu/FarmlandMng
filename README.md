@@ -54,7 +54,7 @@ npm run db:backup -- --dry-run
 
 ### GitHub Actions 備份
 
-`.github/workflows/supabase-backup.yml` 可從 GitHub Actions 頁面手動觸發。先到 repository 的 `Settings → Secrets and variables → Actions` 設定：
+`.github/workflows/supabase-backup.yml` 可從 GitHub Actions 頁面手動觸發。先到 repository 的 `Settings → Environments` 建立名為 `supabase-backup` 的 Environment，並在該 Environment 設定：
 
 - Secrets：`SUPABASE_ACCESS_TOKEN`、`SUPABASE_DB_PASSWORD`
 - Variable：`SUPABASE_PROJECT_REF`（也可建立同名 secret）
