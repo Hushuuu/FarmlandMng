@@ -183,7 +183,7 @@ function ensureDockerIsRunning() {
     })
   } catch {
     throw new Error(
-      'Supabase CLI 的 db dump 需要正在執行的 Docker Desktop。請先啟動 Docker Desktop，再重新執行 npm run db:backup。',
+      'Supabase CLI 的 db dump 需要正在執行的 Docker daemon。請確認目前執行環境的 Docker 服務已啟動，再重新執行備份。',
     )
   }
 }

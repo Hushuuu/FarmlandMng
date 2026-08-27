@@ -40,17 +40,6 @@ VITE_MANAGEMENT_PASSWORD=<管理模式密碼>
 
 ## 資料庫備份（Supabase CLI）
 
-本專案已納入 Supabase CLI，建議把它作為 Dashboard 備份之外的手動／異地備份方式。Supabase Pro、Team、Enterprise 方案另有每日備份；若需要更細的復原時間點，可在 Dashboard 啟用 PITR。CLI 備份是邏輯備份，不能取代正式方案的自動備份。
-
-第一次在新電腦使用時，先登入並連結專案：
-
-```bash
-npx supabase login
-npx supabase link --project-ref <你的專案 ref>
-```
-
-在 CI 或其他非互動環境，可設定 `SUPABASE_ACCESS_TOKEN` 取代 `npx supabase login`；這個 token 只負責 CLI／Management API 認證，不能取代 PostgreSQL 的 Database Password。
-
 建立備份：
 
 ```bash
@@ -62,6 +51,15 @@ npm run db:backup
 ```bash
 npm run db:backup -- --dry-run
 ```
+
+### GitHub Actions 備份
+
+`.github/workflows/supabase-backup.yml` 可從 GitHub Actions 頁面手動觸發。先到 repository 的 `Settings → Secrets and variables → Actions` 設定：
+
+- Secrets：`SUPABASE_ACCESS_TOKEN`、`SUPABASE_DB_PASSWORD`
+- Variable：`SUPABASE_PROJECT_REF`（也可建立同名 secret）
+
+接著到 `Actions → Supabase backup → Run workflow` 執行。備份完成後會上傳為保留 30 天的 GitHub Artifact；workflow 使用 `ubuntu-latest`，不需要本機 Docker Desktop。
 
 還原時依 `manifest.json` 的順序使用 `psql` 匯入三個 SQL 檔。Supabase Storage 的實體檔案不包含在資料庫備份內；本專案目前將果樹圖示以 data URL 儲存在資料庫，因此會隨 `data.sql` 備份。
 
