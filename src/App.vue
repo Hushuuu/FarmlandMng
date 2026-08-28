@@ -57,7 +57,7 @@ const menuGroups = computed<MenuGroup[]>(() => [
     title: '果園管理',
     items: [
       { label: '果園列表', to: '/orchards', icon: ParkOutlined },
-      { label: '果樹管理', to: '/trees', icon: EcoOutlined },
+      // { label: '果樹管理', to: '/trees', icon: EcoOutlined },
     ],
   },
   {

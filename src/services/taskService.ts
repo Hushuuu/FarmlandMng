@@ -788,3 +788,39 @@ export async function listBatchSummaries(limit = 200): Promise<BatchSummary[]> {
     }
   })
 }
+
+// 取得執行該任務的目標名稱
+export async function getBatchTargetName(batchId: string): Promise<string> {
+  const { data: batch, error: be } = await supabase
+    .from('task_execution_batches')
+    .select('task_assignment_id')
+    .eq('id', batchId)
+    .maybeSingle()
+  if (be) throw be
+  if (!batch) throw new Error('找不到執行批次')
+  const { data: assignment, error: ae } = await supabase
+    .from('task_assignments')
+    .select('target_type, target_id')
+    .eq('id', batch.task_assignment_id)
+    .maybeSingle()
+  if (ae) throw ae
+  if (!assignment) throw new Error('找不到任務排程')
+  
+  if (assignment.target_type === 'TREE') {
+    const tree = await supabase.from('trees').select('code, name, area: areas(name, orchard: orchards(name))').eq('id', assignment.target_id).maybeSingle()
+    if (tree.error) throw tree.error
+    const t = tree.data as unknown as { code: string; name: string | null; area: { name: string; orchard: { name: string } | null } | null }
+    return (t?.area?.orchard?.name ? t.area.orchard.name + ' - ' : '') + (t?.area?.name ? t.area.name + ' - ' : '') + (t?.name ?? t?.code ?? '')
+  }
+  if (assignment.target_type === 'AREA') {
+    const area = await supabase.from('areas').select('name, orchard: orchards(name)').eq('id', assignment.target_id).maybeSingle()
+    if (area.error) throw area.error
+    return (area.data?.orchard?.name ? area.data.orchard.name + ' - ' : '') + (area.data?.name ?? '')
+  }
+  if (assignment.target_type === 'ORCHARD') {
+    const orchard = await supabase.from('orchards').select('name').eq('id', assignment.target_id).maybeSingle()
+    if (orchard.error) throw orchard.error
+    return orchard.data?.name ?? ''
+  }
+  return ''
+}

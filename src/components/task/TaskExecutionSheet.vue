@@ -204,8 +204,7 @@ function closeSheet() {
     <n-drawer-content body-content-style="padding:0" closable @close="closeSheet">
       <template #header>
         <div class="sheet-header">
-          <div class="title">執行任務</div>
-          <div class="muted">可用清單或地圖勾選果樹；關閉只收起資訊卡，不會重置進度</div>
+          <div class="title">執行任務 - {{ store.activeBatchTargetName }}</div>
         </div>
       </template>
 

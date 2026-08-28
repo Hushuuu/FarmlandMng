@@ -9,14 +9,22 @@ export const authService = {
   },
 
   async signIn(email: string, password: string) {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+    let emailPadded = email.trim();
+    if(!email.includes('@')) {
+      emailPadded = `${emailPadded}@app.internal`
+    }
+    const { data, error } = await supabase.auth.signInWithPassword({ email: emailPadded, password })
     if (error) throw error
     return data
   },
 
   async signUp(email: string, password: string, displayName?: string) {
+    let emailPadded = email.trim();
+    if(!email.includes('@')) {
+      emailPadded = `${emailPadded}@app.internal`
+    }
     const { data, error } = await supabase.auth.signUp({
-      email,
+      email: emailPadded,
       password,
       options: { data: { display_name: displayName } },
     })

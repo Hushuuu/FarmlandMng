@@ -13,6 +13,7 @@ import {
   setItemsStatus as setExecutionItemsStatus,
   startExecution,
   taskCrudService,
+  getBatchTargetName,
 } from '../services/taskService'
 import type { BatchSummary, ExecutionBatch, ExecutionItem, ItemStatus, PendingTaskInfo, Task, TaskAssignment } from '../types/database'
 import { useMasterStore } from './tree'
@@ -29,6 +30,7 @@ export const useTaskStore = defineStore('task', {
     history: [] as BatchSummary[],
 
     executing: false,
+    activeBatchTargetName: null as string | null,
   }),
 
   getters: {
@@ -126,6 +128,7 @@ export const useTaskStore = defineStore('task', {
         const batch = await startExecution(assignmentId)
         const { items } = await getBatchWithItems(batch.id)
         this.activeBatch = batch
+        this.activeBatchTargetName = await getBatchTargetName(batch.id)
         this.activeItems = items
         this.executionSheetOpen = true
       } finally {
@@ -138,6 +141,7 @@ export const useTaskStore = defineStore('task', {
       try {
         const { batch, items } = await getBatchWithItems(batchId)
         this.activeBatch = batch
+        this.activeBatchTargetName = await getBatchTargetName(batch.id)
         this.activeItems = items
         this.executionSheetOpen = true
       } finally {

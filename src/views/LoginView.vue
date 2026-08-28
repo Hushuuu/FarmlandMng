@@ -66,7 +66,7 @@ async function submit() {
             <n-input v-model:value="displayName" placeholder="選填" />
           </n-form-item>
         </template>
-        <n-form-item label="Email">
+        <n-form-item label="帳號">
           <n-input v-model:value="email" placeholder="email@example.com" />
         </n-form-item>
         <n-form-item label="密碼">
