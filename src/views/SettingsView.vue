@@ -105,7 +105,7 @@ async function resetPassword() {
             <n-input v-model:value="editingName" placeholder="顯示名稱" />
           </n-form-item>
           <div class="btn-row">
-            <n-button size="small" quaternary @click="resetPassword">寄送重設密碼信</n-button>
+            <!-- <n-button size="small" quaternary @click="resetPassword">寄送重設密碼信</n-button> -->
             <n-button size="small" secondary type="error" @click="signOut">登出</n-button>
           </div>
         </n-form>
@@ -129,7 +129,7 @@ async function resetPassword() {
               解鎖後可使用永久刪除與取消結算；關閉頁面或登出後會自動失效。
             </div>
             <div v-else class="muted">
-              尚未設定管理密碼，請在 .env 加入 VITE_MANAGEMENT_PASSWORD。
+              尚未設定管理密碼
             </div>
           </div>
           <n-tag :type="management.unlocked ? 'success' : 'default'" round>
@@ -142,7 +142,7 @@ async function resetPassword() {
               v-model:value="managementPassword"
               type="password"
               show-password-on="click"
-              placeholder="輸入 .env 設定的管理密碼"
+              placeholder="輸入管理密碼"
               :disabled="!management.configured || management.unlocked"
               @keyup.enter="unlockManagement"
             />
@@ -163,10 +163,6 @@ async function resetPassword() {
       </n-card>
 
       <n-button block type="primary" :loading="saving" @click="saveAll">儲存設定</n-button>
-
-      <div class="muted about">
-        果園管理系統 v1.0 · Vue 3 + Naive UI + Supabase
-      </div>
     </n-spin>
   </div>
 </template>

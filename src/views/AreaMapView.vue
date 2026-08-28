@@ -471,11 +471,11 @@ function goBack() {
     <n-modal v-model:show="showForm" preset="card" :title="formTitle" style="max-width: 400px">
       <n-form label-placement="top">
         <n-form-item label="名稱">
-          <n-input v-model:value="form.name" placeholder="選填，例如：老芒果樹" />
+          <n-input v-model:value="form.name" placeholder="選填" />
         </n-form-item>
         <n-form-item v-if="pendingCreatePos" label="新增數量">
           <n-input-number v-model:value="form.count" :min="1" :max="100" :precision="0" style="width: 100%" />
-          <div class="muted">會以目前地圖中心為基準橫向排列，建立後可拖曳調整位置。</div>
+          <!-- <div class="muted">會以目前地圖中心為基準橫向排列，建立後可拖曳調整位置。</div> -->
         </n-form-item>
         <n-form-item label="果樹類型">
           <n-select v-model:value="form.tree_type_id" :options="masterStore.treeTypeOptions" placeholder="選擇類型" clearable />
