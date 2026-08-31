@@ -308,7 +308,7 @@ type ARowLike = TaskAssignment & {
 }
 
 /** 計算下一次到期日（§63：以實際完成日期起算，且可由使用者調整） */
-function completedDateOf(batch: Pick<ExecutionBatch, 'scheduled_date' | 'completed_at'>): string {
+export function completedDateOf(batch: Pick<ExecutionBatch, 'scheduled_date' | 'completed_at'>): string {
   if (batch.completed_at) {
     const completedAt = new Date(batch.completed_at)
     if (!Number.isNaN(completedAt.getTime())) return toDateStr(completedAt)
@@ -316,7 +316,7 @@ function completedDateOf(batch: Pick<ExecutionBatch, 'scheduled_date' | 'complet
   return batch.scheduled_date
 }
 
-function computeNextDue(
+export function computeNextDue(
   assignment: TaskAssignment,
   completedDates: string[],
 ): string | null {
@@ -863,6 +863,7 @@ export async function getBatchContext(batchId: string): Promise<{
   } else if (assignment.target_type === 'AREA') {
     const area = await supabase.from('areas').select('name, orchard: orchards(name)').eq('id', assignment.target_id).maybeSingle()
     if (area.error) throw area.error
+    // @ts-expect-error
     targetName = (area.data?.orchard?.name ? area.data.orchard.name + ' - ' : '') + (area.data?.name ?? '')
   } else if (assignment.target_type === 'ORCHARD') {
     const orchard = await supabase.from('orchards').select('name').eq('id', assignment.target_id).maybeSingle()

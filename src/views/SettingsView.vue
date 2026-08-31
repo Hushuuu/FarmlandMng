@@ -89,6 +89,8 @@ async function resetPassword() {
   if (error) message.error(error.message)
   else message.success('重設密碼信件已寄出')
 }
+void resetPassword;
+
 </script>
 
 <template>

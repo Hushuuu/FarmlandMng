@@ -20,10 +20,10 @@ import {
   SettingsOutlined,
   MenuOutlined,
   LogOutOutlined,
-  EcoOutlined,
   ChecklistOutlined,
   HistoryOutlined,
   CategoryOutlined,
+  TimelineOutlined,
 } from '@vicons/material'
 import { useAuthStore } from './stores/auth'
 import { useManagementStore } from './stores/management'
@@ -73,6 +73,7 @@ const menuGroups = computed<MenuGroup[]>(() => [
       { label: '任務設定', to: '/tasks', icon: ChecklistOutlined },
       { label: '待執行任務', to: '/tasks/pending', icon: TaskAltOutlined },
       { label: '執行歷史', to: '/tasks/history', icon: HistoryOutlined },
+      { label: '任務分析', to: '/analytics', icon: TimelineOutlined },
     ],
   },
   {

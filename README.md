@@ -118,4 +118,5 @@ Task ─ TaskAssignment（ORCHARD / AREA / TREE + 週期）
 | `/tasks`                      | 任務設定（含排程）                 |
 | `/tasks/pending`              | 待執行任務                         |
 | `/tasks/history`              | 任務歷史（`?tree=` 可篩單一果樹）  |
-| `/settings`                   | 系統設定                           |
+| `/analytics`                 | 任務分析（地點／任務雙視角時間軸） |
+| `/settings`                  | 系統設定                           |

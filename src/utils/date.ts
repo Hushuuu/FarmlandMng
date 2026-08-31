@@ -14,11 +14,34 @@ export function parseDate(s: string): Date {
   return new Date(y!, (m ?? 1) - 1, d ?? 1)
 }
 
+export function addCalendarMonths(dateStr: string, months: number): string {
+  const source = parseDate(dateStr)
+  const sourceDay = source.getDate()
+  const sourceLastDay = new Date(source.getFullYear(), source.getMonth() + 1, 0).getDate()
+  const target = new Date(source.getFullYear(), source.getMonth() + months, 1)
+  const targetLastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate()
+  const targetDay = sourceDay === sourceLastDay ? targetLastDay : Math.min(sourceDay, targetLastDay)
+  target.setDate(targetDay)
+  return toDateStr(target)
+}
+
 export function addInterval(dateStr: string, value: number, unit: RecurrenceUnit): string {
   const d = parseDate(dateStr)
   if (unit === 'DAY') d.setDate(d.getDate() + value)
   else if (unit === 'WEEK') d.setDate(d.getDate() + value * 7)
-  else d.setMonth(d.getMonth() + value)
+  else return addCalendarMonths(dateStr, value)
+  return toDateStr(d)
+}
+
+export function startOfMonth(dateStr: string): string {
+  const d = parseDate(dateStr)
+  d.setDate(1)
+  return toDateStr(d)
+}
+
+export function endOfMonth(dateStr: string): string {
+  const d = parseDate(dateStr)
+  d.setMonth(d.getMonth() + 1, 0)
   return toDateStr(d)
 }
 

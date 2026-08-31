@@ -45,6 +45,12 @@ const router = createRouter({
       component: () => import('../views/HistoryView.vue'),
       meta: { title: '執行歷史' },
     },
+    {
+      path: '/analytics',
+      name: 'task-analytics',
+      component: () => import('../views/TaskAnalyticsView.vue'),
+      meta: { title: '任務分析' },
+    },
     { path: '/settings', name: 'settings', component: () => import('../views/SettingsView.vue'), meta: { title: '系統設定' } },
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
