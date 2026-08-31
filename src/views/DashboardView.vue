@@ -141,13 +141,6 @@ onMounted(async () => {
             <span class="oc-name">{{ os.orchard.name }}</span>
             <div class="oc-actions">
               <n-button size="tiny" quaternary @click.stop="openOrchardDetail(os)">查看任務</n-button>
-              <n-button
-                size="tiny"
-                quaternary
-                @click.stop="router.push({ path: '/analytics', query: { view: 'SCOPE', orchard: os.orchard.id } })"
-              >
-                分析
-              </n-button>
               <n-button size="tiny" quaternary type="primary" @click.stop="router.push(`/orchards/${os.orchard.id}/map`)">
                 地圖 →
               </n-button>

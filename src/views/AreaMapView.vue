@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   NButton,
+  // @ts-ignore
   NDatePicker,
   NDrawer,
   NDrawerContent,
@@ -487,9 +488,9 @@ function goBack() {
             :options="(Object.keys(TREE_STATUS_META) as TreeStatus[]).map((s) => ({ label: TREE_STATUS_META[s].label, value: s }))"
           />
         </n-form-item>
-        <n-form-item label="種植日期">
+        <!-- <n-form-item label="種植日期">
           <n-date-picker v-model:value="form.planted_at" type="date" clearable style="width: 100%" />
-        </n-form-item>
+        </n-form-item> -->
         <n-form-item label="備註">
           <n-input v-model:value="form.note" type="textarea" :rows="2" placeholder="選填" />
         </n-form-item>

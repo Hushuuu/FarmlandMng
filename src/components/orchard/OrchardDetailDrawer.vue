@@ -6,6 +6,9 @@ import type { BatchSummary, PendingTaskInfo } from '../../types/database'
 import DueStatusTag from '../task/DueStatusTag.vue'
 import TaskRescheduleModal from '../task/TaskRescheduleModal.vue'
 import { formatDate } from '../../utils/date'
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
 
 const props = withDefaults(
   defineProps<{
@@ -81,11 +84,18 @@ function handleRescheduleSaved() {
       <n-spin :show="loading">
         <div class="detail-head">
           <div class="muted">
-            {{ selectedAreas.length }} 個區域 · {{ treeCount }} 棵果樹
+            {{ selectedAreas.length }} 個區域 /{{ treeCount }} 棵果樹
           </div>
-          <n-button size="small" secondary type="primary" @click="emit('map')">進入地圖</n-button>
+          <div style="display: flex; gap: 6px">
+            <n-button
+                size="small"
+                @click.stop="router.push({ path: '/analytics', query: { view: 'SCOPE', orchard: props.orchardId } })"
+              >
+                圖表
+            </n-button>
+            <n-button size="small" secondary type="primary" @click="emit('map')">進入地圖</n-button>
+          </div>  
         </div>
-
         <n-card v-if="orchardTasks.length" size="small" class="orchard-task-card">
           <div class="area-detail-head">
             <div class="area-detail-name">果園任務</div>

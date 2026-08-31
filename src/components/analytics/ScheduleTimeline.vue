@@ -101,7 +101,7 @@ function eventStroke(event: ScheduleEvent): string {
 }
 
 function eventTitle(event: ScheduleEvent): string {
-  const source = event.source === 'ACTUAL' ? '歷史實際' : '未來預測'
+  const source = '' //event.source === 'ACTUAL' ? '歷史實際' : '未來預測'
   const date = formatDate(event.date)
   const status =
     event.batchStatus === 'COMPLETED'
@@ -110,12 +110,13 @@ function eventTitle(event: ScheduleEvent): string {
         ? '執行中'
         : ''
   const recurrence = recurrenceText(event.recurrenceValue, event.recurrenceUnit)
-  const forecast =
-    event.forecastKind === 'IN_PROGRESS_PROJECTION'
-      ? '依目前執行批次暫估'
-      : event.forecastKind === 'NEXT_START_DATE'
-        ? '依下一輪日期'
-        : ''
+  // const forecast =
+  //   event.forecastKind === 'IN_PROGRESS_PROJECTION'
+  //     ? '依目前執行批次暫估'
+  //     : event.forecastKind === 'NEXT_START_DATE'
+  //       ? '依下一輪日期'
+  //       : ''
+  const forecast = ''
   const completed =
     event.completedDate && event.completedDate !== event.date
       ? `結算 ${formatDate(event.completedDate)}`

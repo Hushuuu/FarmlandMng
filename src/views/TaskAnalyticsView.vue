@@ -98,6 +98,7 @@ function eventMatchesFilters(event: ScheduleEvent): boolean {
 function eventSummary(list: ScheduleEvent[]): string {
   const actual = list.filter((event) => event.source === 'ACTUAL').length
   const forecast = list.length - actual
+  return ''
   return `${actual} 筆歷史 · ${forecast} 筆預測`
 }
 
@@ -134,7 +135,7 @@ const scopeRows = computed<TimelineRow[]>(() => {
       return {
         id: taskId,
         label: task?.name ?? list[0]?.taskName ?? '未命名任務',
-        subtitle: [category, `${lanes.length} 個指派`, eventSummary(list)].filter(Boolean).join(' · '),
+        subtitle: [category, ``, eventSummary(list)].filter(Boolean).join(' · '),
         lanes,
       }
     })
@@ -157,7 +158,7 @@ const taskRows = computed<TimelineRow[]>(() => {
       return {
         id: area.id,
         label: areaName(area),
-        subtitle: `${orchardName(area.orchardId)} · ${lanes.length} 個指派 · ${eventSummary(areaEvents)}`,
+        subtitle: `${orchardName(area.orchardId)}`,
         lanes,
       }
     })
@@ -234,7 +235,7 @@ onMounted(load)
     <div class="head-row">
       <div>
         <h1 class="page-title">任務分析</h1>
-        <div class="muted">前六個月歷史執行 · 今天 · 後六個月預測排程</div>
+        <div class="muted">前六個月至後六個月之任務紀錄與預定排程</div>
       </div>
       <n-button size="small" secondary :loading="loading" @click="load">重新整理</n-button>
     </div>
