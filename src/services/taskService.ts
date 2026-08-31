@@ -68,19 +68,64 @@ export const assignmentService = {
   },
 
   async create(input: Partial<TaskAssignment>): Promise<TaskAssignment> {
-    const { data, error } = await supabase.from('task_assignments').insert(input).select().single()
+    const payload = normalizeAssignmentInput(input, true)
+    const { data, error } = await supabase.from('task_assignments').insert(payload).select().single()
     if (error) throw error
     return data as TaskAssignment
   },
 
   async update(id: string, input: Partial<TaskAssignment>): Promise<void> {
-    const { error } = await supabase.from('task_assignments').update(input).eq('id', id)
+    let source = input
+    const recurrenceChanged = 'recurrence_value' in input || 'recurrence_unit' in input
+    const hasBothRecurrenceFields = 'recurrence_value' in input && 'recurrence_unit' in input
+    if (recurrenceChanged && !hasBothRecurrenceFields) {
+      const { data: current, error: currentError } = await supabase
+        .from('task_assignments')
+        .select('recurrence_value, recurrence_unit')
+        .eq('id', id)
+        .maybeSingle()
+      if (currentError) throw currentError
+      if (!current) throw new Error('找不到任務排程')
+      source = {
+        ...input,
+        recurrence_value: 'recurrence_value' in input ? input.recurrence_value : current.recurrence_value,
+        recurrence_unit: 'recurrence_unit' in input ? input.recurrence_unit : current.recurrence_unit,
+      }
+    }
+    const payload = normalizeAssignmentInput(source)
+    const { error } = await supabase.from('task_assignments').update(payload).eq('id', id)
     if (error) throw error
   },
 
   async softDelete(id: string): Promise<void> {
     await this.update(id, { active: false })
   },
+}
+
+function normalizeAssignmentInput(
+  input: Partial<TaskAssignment>,
+  isCreate = false,
+): Partial<TaskAssignment> {
+  const payload = { ...input }
+  const recurrenceChanged = 'recurrence_value' in input || 'recurrence_unit' in input
+  const hasRecurrence = !!input.recurrence_value && !!input.recurrence_unit
+
+  if (isCreate || recurrenceChanged) {
+    if (!hasRecurrence) {
+      payload.recurrence_value = null
+      payload.recurrence_unit = null
+      payload.next_start_date = null
+    }
+  }
+  return payload
+}
+
+function normalizeExecutionBatch(row: ExecutionBatch): ExecutionBatch {
+  return {
+    ...row,
+    note: row.note ?? null,
+    cost: row.cost == null ? null : Number(row.cost),
+  }
 }
 
 // ------------------------------------------------------------
@@ -416,7 +461,7 @@ export async function startExecution(assignmentId: string): Promise<ExecutionBat
     .eq('status', 'IN_PROGRESS')
     .maybeSingle()
   if (existingError) throw existingError
-  if (existing) return existing as ExecutionBatch
+  if (existing) return normalizeExecutionBatch(existing as ExecutionBatch)
 
   const { data: latestCompleted, error: latestError } = await supabase
     .from('task_execution_batches')
@@ -458,7 +503,7 @@ export async function startExecution(assignmentId: string): Promise<ExecutionBat
   }))
   const { error: ie } = await supabase.from('task_execution_items').insert(items)
   if (ie) throw ie
-  return batch as ExecutionBatch
+  return normalizeExecutionBatch(batch as ExecutionBatch)
 }
 
 /** 調整進行中批次的本輪預計執行日期。 */
@@ -501,7 +546,7 @@ export async function getBatchWithItems(batchId: string): Promise<{
   if (be) throw be
   if (ie) throw ie
   return {
-    batch: batch as ExecutionBatch,
+    batch: normalizeExecutionBatch(batch as ExecutionBatch),
     items: ((items ?? []) as (ExecutionItem & { tree: Tree | null })[]) ?? [],
   }
 }
@@ -754,7 +799,7 @@ export async function listBatchSummaries(limit = 200): Promise<BatchSummary[]> {
   const aMap = new Map<string, ARow>(aRows.map((row) => [row.id, row]))
   const refs = await loadTargetRefs(aRows)
 
-  const batchList = (batches ?? []) as ExecutionBatch[]
+  const batchList = ((batches ?? []) as ExecutionBatch[]).map(normalizeExecutionBatch)
   const ids = batchList.map((b) => b.id)
 
   const counts: Record<string, { total: number; done: number }> = {}
@@ -779,6 +824,7 @@ export async function listBatchSummaries(limit = 200): Promise<BatchSummary[]> {
       taskId: a?.task?.id ?? '',
       taskName: a?.task?.name ?? '?',
       categoryName: a?.task?.category?.name ?? null,
+      assignmentNote: a?.note ?? null,
       targetType: a?.target_type ?? 'ORCHARD',
       orchardId: ids.orchardId,
       areaId: ids.areaId,
@@ -789,8 +835,10 @@ export async function listBatchSummaries(limit = 200): Promise<BatchSummary[]> {
   })
 }
 
-// 取得執行該任務的目標名稱
-export async function getBatchTargetName(batchId: string): Promise<string> {
+export async function getBatchContext(batchId: string): Promise<{
+  targetName: string
+  assignmentNote: string | null
+}> {
   const { data: batch, error: be } = await supabase
     .from('task_execution_batches')
     .select('task_assignment_id')
@@ -800,27 +848,61 @@ export async function getBatchTargetName(batchId: string): Promise<string> {
   if (!batch) throw new Error('找不到執行批次')
   const { data: assignment, error: ae } = await supabase
     .from('task_assignments')
-    .select('target_type, target_id')
+    .select('target_type, target_id, note')
     .eq('id', batch.task_assignment_id)
     .maybeSingle()
   if (ae) throw ae
   if (!assignment) throw new Error('找不到任務排程')
-  
+
+  let targetName = ''
   if (assignment.target_type === 'TREE') {
     const tree = await supabase.from('trees').select('code, name, area: areas(name, orchard: orchards(name))').eq('id', assignment.target_id).maybeSingle()
     if (tree.error) throw tree.error
     const t = tree.data as unknown as { code: string; name: string | null; area: { name: string; orchard: { name: string } | null } | null }
-    return (t?.area?.orchard?.name ? t.area.orchard.name + ' - ' : '') + (t?.area?.name ? t.area.name + ' - ' : '') + (t?.name ?? t?.code ?? '')
-  }
-  if (assignment.target_type === 'AREA') {
+    targetName = (t?.area?.orchard?.name ? t.area.orchard.name + ' - ' : '') + (t?.area?.name ? t.area.name + ' - ' : '') + (t?.name ?? t?.code ?? '')
+  } else if (assignment.target_type === 'AREA') {
     const area = await supabase.from('areas').select('name, orchard: orchards(name)').eq('id', assignment.target_id).maybeSingle()
     if (area.error) throw area.error
-    return (area.data?.orchard?.name ? area.data.orchard.name + ' - ' : '') + (area.data?.name ?? '')
-  }
-  if (assignment.target_type === 'ORCHARD') {
+    targetName = (area.data?.orchard?.name ? area.data.orchard.name + ' - ' : '') + (area.data?.name ?? '')
+  } else if (assignment.target_type === 'ORCHARD') {
     const orchard = await supabase.from('orchards').select('name').eq('id', assignment.target_id).maybeSingle()
     if (orchard.error) throw orchard.error
-    return orchard.data?.name ?? ''
+    targetName = orchard.data?.name ?? ''
   }
-  return ''
+
+  return {
+    targetName,
+    assignmentNote: assignment.note ?? null,
+  }
+}
+
+// 取得執行該任務的目標名稱
+export async function getBatchTargetName(batchId: string): Promise<string> {
+  const { targetName } = await getBatchContext(batchId)
+  return targetName
+}
+
+/** 更新進行中批次的本次執行備註與成本。 */
+export async function updateBatchDetails(
+  batchId: string,
+  note: string | null,
+  cost: number | null,
+): Promise<void> {
+  const normalizedCost = cost === null ? null : Number(cost)
+  if (normalizedCost !== null && (!Number.isFinite(normalizedCost) || normalizedCost < 0)) {
+    throw new Error('成本必須是大於或等於 0 的數字')
+  }
+
+  const { data: updated, error } = await supabase
+    .from('task_execution_batches')
+    .update({
+      note: note?.trim() || null,
+      cost: normalizedCost,
+    })
+    .eq('id', batchId)
+    .eq('status', 'IN_PROGRESS')
+    .select('id')
+    .maybeSingle()
+  if (error) throw error
+  if (!updated) throw new Error('只有執行中的批次可以更新執行資訊')
 }

@@ -235,6 +235,7 @@ create table if not exists public.task_execution_batches (
   status             varchar(20) not null default 'IN_PROGRESS'
                      check (status in ('IN_PROGRESS','COMPLETED','CANCELLED')),
   note               text,
+  cost               numeric(12,2) check (cost is null or cost >= 0),
   created_by         uuid references auth.users(id) on delete set null,
   created_at         timestamptz not null default now(),
   updated_at         timestamptz not null default now()
@@ -246,6 +247,10 @@ create index if not exists idx_batches_status on public.task_execution_batches(s
 drop trigger if exists trg_batches_updated_at on public.task_execution_batches;
 create trigger trg_batches_updated_at before update on public.task_execution_batches
   for each row execute function public.set_updated_at();
+
+-- 已建立過舊版資料表時，補上每次執行批次的成本。
+alter table public.task_execution_batches
+  add column if not exists cost numeric(12,2) check (cost is null or cost >= 0);
 
 -- ------------------------------------------------------------
 -- task_execution_items 執行項目（實際落到 Tree 層級）

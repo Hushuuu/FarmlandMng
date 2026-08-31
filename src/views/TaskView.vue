@@ -167,6 +167,13 @@ const areas = ref<Area[]>([])
 const trees = ref<Tree[]>([])
 
 watch(
+  () => assignForm.value.has_recurrence,
+  (hasRecurrence) => {
+    if (!hasRecurrence) assignForm.value.next_start_date = null
+  },
+)
+
+watch(
   () => assignForm.value.orchard_id,
   async (id) => {
     areas.value = id ? await areaService.listByOrchard(id) : []
@@ -221,14 +228,16 @@ async function openAssignEdit(a: TaskAssignment) {
       orchardId = ar?.orchard_id ?? null
     }
   }
+  const hasRecurrence = !!a.recurrence_value && !!a.recurrence_unit
   assignForm.value = {
     target_type: a.target_type,
     orchard_id: orchardId,
     area_id: areaId,
     tree_id: a.target_type === 'TREE' ? a.target_id : null,
     start_date: new Date(`${a.start_date}T00:00:00`).getTime(),
-    next_start_date: a.next_start_date ? new Date(`${a.next_start_date}T00:00:00`).getTime() : null,
-    has_recurrence: !!a.recurrence_value && !!a.recurrence_unit,
+    next_start_date:
+      hasRecurrence && a.next_start_date ? new Date(`${a.next_start_date}T00:00:00`).getTime() : null,
+    has_recurrence: hasRecurrence,
     recurrence_value: a.recurrence_value ?? 30,
     recurrence_unit: a.recurrence_unit ?? 'DAY',
     note: a.note ?? '',
@@ -261,7 +270,7 @@ async function saveAssign() {
     target_type: f.target_type,
     target_id: targetId,
     start_date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
-    next_start_date: nextDate
+    next_start_date: f.has_recurrence && nextDate
       ? `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}-${String(nextDate.getDate()).padStart(2, '0')}`
       : null,
     recurrence_value: f.has_recurrence ? f.recurrence_value : null,
@@ -373,7 +382,10 @@ onMounted(async () => {
                     </n-tag>
                     <b>{{ targetNames.get(a.id) ?? '…' }}</b>
                     <span class="muted">　{{ recurrenceText(a.recurrence_value, a.recurrence_unit) }}　起始 {{ formatDate(a.start_date) }}</span>
-                    <span v-if="a.next_start_date" class="muted">　下一輪 {{ formatDate(a.next_start_date) }}</span>
+                    <span v-if="a.next_start_date && a.recurrence_value && a.recurrence_unit" class="muted">
+                     　下一輪 {{ formatDate(a.next_start_date) }}
+                    </span>
+                    <span v-if="a.note" class="assign-note muted">　指派備註：{{ a.note }}</span>
                     <n-tag v-if="!a.active" size="tiny" type="error" round>已停用</n-tag>
                   </div>
                   <div class="row-actions">
@@ -478,7 +490,7 @@ onMounted(async () => {
         <n-form-item label="開始日期" required>
           <n-date-picker v-model:value="assignForm.start_date" type="date" style="width: 100%" />
         </n-form-item>
-        <n-form-item label="下一輪預計開始日">
+        <n-form-item v-if="assignForm.has_recurrence" label="下一輪預計開始日">
           <n-date-picker v-model:value="assignForm.next_start_date" type="date" clearable style="width: 100%" />
           <div class="muted">完成本輪後會自動依週期帶入，也可以在待執行任務中調整。</div>
         </n-form-item>
@@ -495,7 +507,7 @@ onMounted(async () => {
           </div>
         </n-form-item>
 
-        <n-form-item label="備註">
+        <n-form-item label="指派備註">
           <n-input v-model:value="assignForm.note" type="textarea" :rows="2" />
         </n-form-item>
         <n-form-item label="啟用">
@@ -581,6 +593,11 @@ onMounted(async () => {
   gap: 6px;
   flex-wrap: wrap;
   font-size: 13px;
+}
+
+.assign-note {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .recurrence-row {

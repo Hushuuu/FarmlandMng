@@ -433,6 +433,7 @@ function goBack() {
             <n-tag size="tiny" :bordered="false">{{ TARGET_TYPE_LABEL[p.assignment.target_type] }}</n-tag>
             <span class="rt-name">{{ p.task.name }}</span>
             <span class="muted">{{ formatDate(p.dueDate) }}</span>
+            <span v-if="p.assignment.note" class="rt-note muted">指派備註：{{ p.assignment.note }}</span>
             <due-status-tag :status="p.dueStatus" />
             <n-button size="tiny" @click="openReschedule(p)">
               {{ p.runningBatchId ? '展延日期' : p.dueStatus === 'OVERDUE' ? '展延日期' : '調整日期' }}
@@ -559,5 +560,11 @@ function goBack() {
 .rt-name {
   font-size: 13.5px;
   font-weight: 600;
+}
+
+.rt-note {
+  flex-basis: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 </style>

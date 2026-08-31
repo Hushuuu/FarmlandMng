@@ -1,11 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   NButton,
   NCard,
-  NDrawer,
-  NDrawerContent,
   NEmpty,
   NForm,
   NFormItem,
@@ -24,7 +22,7 @@ import { useManagementStore } from '../stores/management'
 import { statsService } from '../services/statsService'
 import type { AreaStats } from '../services/statsService'
 import { getPendingTasks, listBatchSummaries } from '../services/taskService'
-import DueStatusTag from '../components/task/DueStatusTag.vue'
+import OrchardDetailDrawer from '../components/orchard/OrchardDetailDrawer.vue'
 import { useTaskStore } from '../stores/task'
 
 const router = useRouter()
@@ -145,45 +143,10 @@ async function loadDetail() {
   }
 }
 
-const selectedAreas = computed(() =>
-  selected.value ? areaList.value.filter((a) => a.area.orchard_id === selected.value!.id) : [],
-)
-
-const selectedAreaTreeTotal = computed(() => selectedAreas.value.reduce((sum, a) => sum + a.treeCount, 0))
-
-const selectedOrchardTasks = computed(() =>
-  selected.value
-    ? pending.value.filter(
-        (p) => p.orchardId === selected.value!.id && p.assignment.target_type === 'ORCHARD',
-      )
-    : [],
-)
-
-function orchardSettledCount(orchardId: string): number {
-  return history.value.filter(
-    (b) => b.status === 'COMPLETED' && b.orchardId === orchardId && b.targetType === 'ORCHARD',
-  ).length
-}
-
-function areaTasks(orchardId: string, areaId: string): PendingTaskInfo[] {
-  return pending.value.filter((p) => p.orchardId === orchardId && p.areaId === areaId)
-}
-
-function areaTaskCounts(orchardId: string, areaId: string) {
-  const list = areaTasks(orchardId, areaId)
-  return {
-    total: list.length,
-    today: list.filter((p) => p.dueStatus === 'DUE_TODAY').length,
-    upcoming: list.filter((p) => p.dueStatus === 'UPCOMING').length,
-    overdue: list.filter((p) => p.dueStatus === 'OVERDUE').length,
-    running: list.filter((p) => !!p.runningBatchId).length,
-  }
-}
-
-function settledCount(orchardId: string, areaId: string): number {
-  return history.value.filter(
-    (b) => b.status === 'COMPLETED' && b.orchardId === orchardId && b.areaId === areaId,
-  ).length
+function openSelectedOrchardMap() {
+  if (!selected.value) return
+  showDetail.value = false
+  router.push(`/orchards/${selected.value.id}/map`)
 }
 
 async function execute(p: PendingTaskInfo) {
@@ -219,7 +182,7 @@ onMounted(() => store.loadOrchards(true))
               <div v-if="o.description" class="muted desc">{{ o.description }}</div>
             </div>
             <div>
-              <n-button size="small" secondary @click.stop="openDetail(o)">查看狀況</n-button>
+              <n-button size="small" secondary @click.stop="openDetail(o)">查看任務</n-button>
               <n-button size="small" secondary type="primary" @click.stop="router.push(`/orchards/${o.id}/map`)">
                 地圖 →
               </n-button>
@@ -262,85 +225,19 @@ onMounted(() => store.loadOrchards(true))
       </n-form>
     </n-modal>
 
-    <n-drawer v-model:show="showDetail" placement="right" width="min(420px, 100vw)">
-      <n-drawer-content v-if="selected" :title="selected.name" closable>
-        <n-spin :show="detailLoading">
-          <div class="detail-head">
-            <div class="muted">
-              {{ selectedAreas.length }} 個區域 · {{ selectedAreaTreeTotal }} 棵果樹
-            </div>
-            <n-button size="small" secondary type="primary" @click="router.push(`/orchards/${selected.id}/map`)">
-              進入地圖
-            </n-button>
-          </div>
-
-          <n-card
-            v-if="selectedOrchardTasks.length || orchardSettledCount(selected.id)"
-            size="small"
-            class="orchard-task-card"
-          >
-            <div class="area-detail-head">
-              <div>
-                <div class="area-detail-name">果園任務</div>
-              </div>
-              <span class="settled">已結算 {{ orchardSettledCount(selected.id) }} 次</span>
-            </div>
-            <div v-if="selectedOrchardTasks.length" class="area-task-list">
-              <div v-for="task in selectedOrchardTasks" :key="task.assignment.id" class="area-task-row">
-                <div class="area-task-name">{{ task.task.name }}</div>
-                <due-status-tag :status="task.dueStatus" />
-                <n-tag v-if="task.runningBatchId" size="tiny" type="info" round>執行中</n-tag>
-                <n-button size="tiny" type="primary" @click="execute(task)">
-                  {{ task.runningBatchId ? '繼續' : '執行' }}
-                </n-button>
-              </div>
-            </div>
-            <div v-else class="muted area-task-empty">目前沒有待執行的果園層級任務</div>
-          </n-card>
-
-          <n-empty v-if="!selectedAreas.length && !detailLoading" description="目前沒有有效區域" style="padding: 24px 0" />
-          <div v-else-if="selectedAreas.length" class="area-detail-list">
-            <n-card v-for="area in selectedAreas" :key="area.area.id" size="small" class="area-detail-card">
-              <div class="area-detail-head">
-                <div>
-                  <div class="area-detail-name">{{ area.area.name }}</div>
-                  <div class="muted">{{ area.treeCount }} 棵果樹</div>
-                </div>
-                <n-tag v-if="areaTaskCounts(selected.id, area.area.id).overdue" size="tiny" type="error" round>
-                  逾期 {{ areaTaskCounts(selected.id, area.area.id).overdue }}
-                </n-tag>
-              </div>
-
-              <div class="area-detail-stats">
-                <span>任務 {{ areaTaskCounts(selected.id, area.area.id).total }}</span>
-                <span class="warn">今日 {{ areaTaskCounts(selected.id, area.area.id).today }}</span>
-                <span class="info">執行中 {{ areaTaskCounts(selected.id, area.area.id).running }}</span>
-                <span class="settled">已結算 {{ settledCount(selected.id, area.area.id) }} 次</span>
-              </div>
-
-              <div v-if="areaTasks(selected.id, area.area.id).length" class="area-task-list">
-                <div
-                  v-for="task in areaTasks(selected.id, area.area.id)"
-                  :key="task.assignment.id"
-                  class="area-task-row"
-                >
-                  <div class="area-task-name">
-                    {{ task.task.name }}
-                    <span class="muted">· {{ task.targetLabel }}</span>
-                  </div>
-                  <due-status-tag :status="task.dueStatus" />
-                  <n-tag v-if="task.runningBatchId" size="tiny" type="info" round>執行中</n-tag>
-                  <n-button size="tiny" type="primary" @click="execute(task)">
-                    {{ task.runningBatchId ? '繼續' : '執行' }}
-                  </n-button>
-                </div>
-              </div>
-              <div v-else class="muted area-task-empty">尚未指派任務</div>
-            </n-card>
-          </div>
-        </n-spin>
-      </n-drawer-content>
-    </n-drawer>
+    <orchard-detail-drawer
+      v-if="selected"
+      v-model:show="showDetail"
+      :orchard-id="selected.id"
+      :orchard-name="selected.name"
+      :areas="areaList"
+      :pending="pending"
+      :history="history"
+      :loading="detailLoading"
+      @map="openSelectedOrchardMap"
+      @execute="execute"
+      @reschedule-saved="loadDetail"
+    />
   </div>
 </template>
 
@@ -388,86 +285,6 @@ onMounted(() => store.loadOrchards(true))
 .size-row {
   display: flex;
   gap: 10px;
-}
-
-.detail-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.orchard-task-card {
-  margin-bottom: 8px;
-}
-
-.area-detail-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.area-detail-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.area-detail-name {
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.area-detail-stats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 8px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.area-detail-stats .info {
-  color: #2080f0;
-}
-
-.area-detail-stats .settled {
-  color: var(--primary);
-}
-
-.area-task-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 10px;
-  border-top: 1px dashed #e5e7eb;
-  padding-top: 8px;
-}
-
-.area-task-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-}
-
-.area-task-name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.area-task-empty {
-  margin-top: 8px;
-  font-size: 12px;
-}
-
-.warn {
-  color: #f0a020;
 }
 
 </style>

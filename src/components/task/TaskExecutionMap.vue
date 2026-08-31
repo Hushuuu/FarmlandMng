@@ -338,8 +338,8 @@ onBeforeUnmount(() => {
 
 .map-viewport {
   position: relative;
-  height: min(46vh, 420px);
-  min-height: 260px;
+  height: min(56vh, 520px);
+  min-height: 300px;
   overflow: hidden;
   border: 1px solid #e8eaf0;
   border-radius: 12px;

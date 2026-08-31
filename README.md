@@ -26,7 +26,7 @@ VITE_MANAGEMENT_PASSWORD=<管理模式密碼>
 ## 資料庫建置（一次性）
 
 到 Supabase Dashboard → SQL Editor，執行 `supabase/schema.sql` 全部內容。
-既有資料庫也可再執行一次（`CREATE TABLE IF NOT EXISTS` 不會覆蓋資料）；這次會把 `tree_types.icon` 改成 `text`，才能儲存上傳圖示。
+既有資料庫也可再執行一次（`CREATE TABLE IF NOT EXISTS` 不會覆蓋資料）；這次會把 `tree_types.icon` 改成 `text`，並補上 `task_execution_batches.cost`，才能儲存上傳圖示與每次執行成本。
 它會建立：
 
 - 資料表：orchards、areas、trees、tree_types、task_categories、tasks、task_assignments、task_execution_batches、task_execution_items、profiles、system_settings
@@ -95,6 +95,8 @@ Task ─ TaskAssignment（ORCHARD / AREA / TREE + 週期）
 
 - 任務指定 AREA 時，產生批次時解析「當下」區域內有效果樹（§62）
 - 下次到期日 = 上次完成日 + 週期（§63）
+- 單次任務完成後不會產生下一輪日期
+- 執行批次可記錄本次執行備註與成本
 - 一般刪除皆為軟刪除（active = false），歷史紀錄保留（§60）；管理模式可選擇永久刪除
 - 執行歷史中的已結算批次可取消結算，恢復為執行中
 - 區域地圖新增果樹時可一次建立多棵，預設以橫向單列排列

@@ -27,7 +27,7 @@ const overdue = computed(() => props.info.dueStatus === 'OVERDUE')
         </n-tag>
         <span v-else class="muted">未分類</span>
         <DueStatusTag :status="info.dueStatus" />
-        <n-tag v-if="running" size="small" type="info" round>執行中</n-tag>
+        <n-tag v-if="running && !overdue" size="small" type="info" round>執行中</n-tag>
       </div>
 
       <div class="card-name">{{ info.task.name }}</div>
@@ -35,6 +35,9 @@ const overdue = computed(() => props.info.dueStatus === 'OVERDUE')
         {{ info.targetPath }}
         <span class="dot">·</span>
         {{ info.treeCount }} 棵
+      </div>
+      <div v-if="info.assignment.note" class="card-note muted">
+        指派備註：{{ info.assignment.note }}
       </div>
       <div class="card-meta muted">
         到期：{{ formatDate(info.dueDate) }}
@@ -80,6 +83,12 @@ const overdue = computed(() => props.info.dueStatus === 'OVERDUE')
 .card-sub {
   font-size: 13px;
   color: #555b61;
+}
+
+.card-note {
+  font-size: 13px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .dot {

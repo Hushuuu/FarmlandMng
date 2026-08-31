@@ -1137,6 +1137,7 @@ target_type         varchar
 target_id           uuid
 
 start_date          date
+next_start_date     date（僅週期任務使用）
 
 recurrence_type     varchar
 recurrence_value    integer
@@ -1145,6 +1146,7 @@ recurrence_unit     varchar
 active              boolean
 
 note                text
+cost                numeric(12,2)
 
 created_at          timestamptz
 updated_at          timestamptz
@@ -1799,6 +1801,8 @@ Execution Batch，調整日期時則更新該批次的 `scheduled_date`，只影
 逾期且尚未開始的任務，調整日期視為展延本輪預計執行日，日期需為今天或
 之後。重置本輪則刪除該輪的 Execution Batch 與 Execution Items，並清除
 本輪展延日期，回到原週期計算，不保留不需要的執行明細。
+
+單次任務完成後不會產生下一輪預計開始日。
 
 如果未來需要固定排程，再增加：
 

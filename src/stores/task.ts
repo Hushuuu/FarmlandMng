@@ -13,7 +13,8 @@ import {
   setItemsStatus as setExecutionItemsStatus,
   startExecution,
   taskCrudService,
-  getBatchTargetName,
+  getBatchContext,
+  updateBatchDetails,
 } from '../services/taskService'
 import type { BatchSummary, ExecutionBatch, ExecutionItem, ItemStatus, PendingTaskInfo, Task, TaskAssignment } from '../types/database'
 import { useMasterStore } from './tree'
@@ -31,6 +32,7 @@ export const useTaskStore = defineStore('task', {
 
     executing: false,
     activeBatchTargetName: null as string | null,
+    activeAssignmentNote: null as string | null,
   }),
 
   getters: {
@@ -127,8 +129,10 @@ export const useTaskStore = defineStore('task', {
       try {
         const batch = await startExecution(assignmentId)
         const { items } = await getBatchWithItems(batch.id)
+        const context = await getBatchContext(batch.id)
         this.activeBatch = batch
-        this.activeBatchTargetName = await getBatchTargetName(batch.id)
+        this.activeBatchTargetName = context.targetName
+        this.activeAssignmentNote = context.assignmentNote
         this.activeItems = items
         this.executionSheetOpen = true
       } finally {
@@ -140,8 +144,10 @@ export const useTaskStore = defineStore('task', {
       this.executing = true
       try {
         const { batch, items } = await getBatchWithItems(batchId)
+        const context = await getBatchContext(batch.id)
         this.activeBatch = batch
-        this.activeBatchTargetName = await getBatchTargetName(batch.id)
+        this.activeBatchTargetName = context.targetName
+        this.activeAssignmentNote = context.assignmentNote
         this.activeItems = items
         this.executionSheetOpen = true
       } finally {
@@ -182,11 +188,22 @@ export const useTaskStore = defineStore('task', {
       }
     },
 
+    async updateActiveBatchDetails(note: string | null, cost: number | null) {
+      if (!this.activeBatch) return
+      const normalizedNote = note?.trim() || null
+      const normalizedCost = cost === null ? null : Number(cost)
+      await updateBatchDetails(this.activeBatch.id, normalizedNote, normalizedCost)
+      this.activeBatch.note = normalizedNote
+      this.activeBatch.cost = normalizedCost
+    },
+
     async finishExecution() {
       if (!this.activeBatch) return
       await finishBatch(this.activeBatch.id)
       this.activeBatch = null
       this.activeItems = []
+      this.activeBatchTargetName = null
+      this.activeAssignmentNote = null
       this.executionSheetOpen = false
       await this.loadPending()
     },
@@ -196,6 +213,8 @@ export const useTaskStore = defineStore('task', {
       await cancelBatch(this.activeBatch.id)
       this.activeBatch = null
       this.activeItems = []
+      this.activeBatchTargetName = null
+      this.activeAssignmentNote = null
       this.executionSheetOpen = false
       await this.loadPending()
     },
@@ -212,6 +231,8 @@ export const useTaskStore = defineStore('task', {
     clearExecution() {
       this.activeBatch = null
       this.activeItems = []
+      this.activeBatchTargetName = null
+      this.activeAssignmentNote = null
       this.executionSheetOpen = false
     },
   },

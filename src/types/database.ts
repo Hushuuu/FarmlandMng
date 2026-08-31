@@ -96,6 +96,7 @@ export interface ExecutionBatch extends BaseRow {
   completed_at: string | null
   status: BatchStatus
   note: string | null
+  cost: number | null
   created_by: string | null
 }
 
@@ -136,6 +137,7 @@ export interface BatchSummary extends ExecutionBatch {
   taskId: string
   taskName: string
   categoryName: string | null
+  assignmentNote: string | null
   targetType: TargetType
   orchardId: string | null
   areaId: string | null

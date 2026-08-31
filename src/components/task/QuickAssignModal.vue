@@ -138,7 +138,7 @@ async function submit() {
             <span v-else class="muted">關閉表示單次任務</span>
           </div>
         </n-form-item>
-        <n-form-item label="備註">
+        <n-form-item label="指派備註">
           <n-input v-model:value="note" type="textarea" :rows="2" placeholder="選填" />
         </n-form-item>
         <n-button block type="primary" :loading="saving" @click="submit">指派</n-button>

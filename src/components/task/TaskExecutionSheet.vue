@@ -6,6 +6,10 @@ import {
   NDrawerContent,
   NDropdown,
   NEmpty,
+  NForm,
+  NFormItem,
+  NInput,
+  NInputNumber,
   NProgress,
   NSpin,
   NTag,
@@ -30,6 +34,9 @@ const doneCount = computed(
 )
 const pendingCount = computed(() => total.value - doneCount.value)
 
+const batchNote = ref('')
+const batchCost = ref<number | null>(null)
+
 /** 清單篩選 */
 type ListFilter = 'ALL' | 'OPEN' | 'DONE'
 const filter = ref<ListFilter>('ALL')
@@ -41,6 +48,15 @@ watch(
     viewMode.value = 'MAP'
     filter.value = 'ALL'
   },
+)
+
+watch(
+  () => store.activeBatch?.id,
+  () => {
+    batchNote.value = store.activeBatch?.note ?? ''
+    batchCost.value = store.activeBatch?.cost ?? null
+  },
+  { immediate: true },
 )
 
 const openItems = computed(() =>
@@ -148,6 +164,11 @@ function confirmCompleteAll() {
   })
 }
 
+async function persistBatchDetails() {
+  if (!store.activeBatch) return
+  await store.updateActiveBatchDetails(batchNote.value, batchCost.value)
+}
+
 function confirmFinish() {
   const partial = pendingCount.value > 0 && doneCount.value > 0
   const none = doneCount.value === 0
@@ -162,8 +183,9 @@ function confirmFinish() {
     negativeText: '繼續執行',
     onPositiveClick: async () => {
       try {
+        await persistBatchDetails()
         await store.finishExecution()
-        message.success('本輪任務已完成，下次執行日期已更新')
+        message.success('本次執行已完成')
       } catch (e) {
         message.error(e instanceof Error ? e.message : '完成任務失敗')
       }
@@ -211,6 +233,9 @@ function closeSheet() {
       <n-spin :show="store.executing">
         <div v-if="store.activeBatch" class="exec-body">
           <div class="progress-card">
+            <div v-if="store.activeAssignmentNote" class="assignment-note muted">
+              指派備註：{{ store.activeAssignmentNote }}
+            </div>
             <n-progress
               type="line"
               :percentage="store.progress"
@@ -223,14 +248,31 @@ function closeSheet() {
               {{ doneCount }} / {{ total }}
               <span class="muted">　剩餘 {{ pendingCount }} 項</span>
             </div>
-            <div class="actions">
-              <n-button size="small" secondary :disabled="pendingCount === 0" @click="confirmCompleteAll">
-                全部完成
-              </n-button>
-              <n-button size="small" secondary type="warning" @click="confirmReset">重置本輪</n-button>
-              <n-button size="small" secondary @click="closeSheet">關閉</n-button>
-              <n-button size="small" type="primary" @click="confirmFinish">完成本輪</n-button>
-            </div>
+            <n-form label-placement="top" class="execution-details">
+              <div class="execution-fields">
+                <n-form-item label="本次執行備註">
+                  <n-input v-model:value="batchNote" placeholder="選填" />
+                </n-form-item>
+                <n-form-item label="成本 ($)">
+                  <n-input-number
+                    v-model:value="batchCost"
+                    :min="0"
+                    :precision="0"
+                    clearable
+                    style="width: 100%"
+                    placeholder="選填"
+                  />
+                </n-form-item>
+              </div>
+            </n-form>
+          </div>
+          <div class="actions">
+            <n-button size="small" secondary :disabled="pendingCount === 0" @click="confirmCompleteAll">
+              全部完成
+            </n-button>
+            <n-button size="small" secondary type="warning" @click="confirmReset">重置本輪</n-button>
+            <n-button size="small" secondary @click="closeSheet">關閉</n-button>
+            <n-button size="small" type="primary" @click="confirmFinish">完成本輪</n-button>
           </div>
 
           <n-empty v-if="!total" description="沒有可執行項目" style="margin-top: 40px" />
@@ -298,6 +340,11 @@ function closeSheet() {
   font-weight: 700;
 }
 
+.assignment-note {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .exec-body {
   padding: 12px 16px;
 }
@@ -310,9 +357,6 @@ function closeSheet() {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  position: sticky;
-  top: 0;
-  z-index: 5;
 }
 
 .progress-text {
@@ -320,10 +364,33 @@ function closeSheet() {
   font-weight: 700;
 }
 
+.execution-details {
+  border-top: 1px dashed #e5e7eb;
+  padding-top: 4px;
+}
+
+.execution-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 150px;
+  gap: 8px;
+}
+
+.execution-details :deep(.n-form-item) {
+  margin-bottom: 8px;
+}
+
 .actions {
   display: flex;
   justify-content: flex-end;
   gap: 6px;
+  flex-wrap: wrap;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  margin-top: 8px;
+  padding: 8px 0;
+  background: #fff;
+  border-bottom: 1px solid #e8eaf0;
 }
 
 .list-filter {
@@ -450,5 +517,11 @@ function closeSheet() {
 
 .bottom-space {
   height: 24px;
+}
+
+@media (max-width: 480px) {
+  .execution-fields {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
