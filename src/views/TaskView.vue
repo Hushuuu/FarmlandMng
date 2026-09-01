@@ -385,7 +385,7 @@ onMounted(async () => {
                     <span v-if="a.next_start_date && a.recurrence_value && a.recurrence_unit" class="muted">
                      　下一輪 {{ formatDate(a.next_start_date) }}
                     </span>
-                    <span v-if="a.note" class="assign-note muted">　指派備註：{{ a.note }}</span>
+                    <span v-if="a.note" class="assign-note muted">　備註：{{ a.note }}</span>
                     <n-tag v-if="!a.active" size="tiny" type="error" round>已停用</n-tag>
                   </div>
                   <div class="row-actions">

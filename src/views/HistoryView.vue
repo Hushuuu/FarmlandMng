@@ -308,7 +308,7 @@ onMounted(load)
                 <n-tag v-if="b.status === 'IN_PROGRESS'" size="tiny" type="info" round>執行中</n-tag>
               </div>
               <div class="path muted">{{ b.targetLabel }}</div>
-              <div v-if="b.assignmentNote" class="history-note muted">指派備註：{{ b.assignmentNote }}</div>
+              <div v-if="b.assignmentNote" class="history-note muted">備註：{{ b.assignmentNote }}</div>
               <div v-if="b.note || b.cost != null" class="history-note muted">
                 <span v-if="b.note">執行備註：{{ b.note }}</span>
                 <span v-if="b.cost != null">成本 ${{ formatCost(b.cost) }}</span>

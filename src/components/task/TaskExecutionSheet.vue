@@ -234,7 +234,7 @@ function closeSheet() {
         <div v-if="store.activeBatch" class="exec-body">
           <div class="progress-card">
             <div v-if="store.activeAssignmentNote" class="assignment-note muted">
-              指派備註：{{ store.activeAssignmentNote }}
+              備註：{{ store.activeAssignmentNote }}
             </div>
             <n-progress
               type="line"

@@ -113,7 +113,7 @@ async function save() {
       {{ info.task.name }} · {{ info.targetPath }}
     </div>
     <div v-if="info?.assignment.note" class="assignment-note muted">
-      指派備註：{{ info.assignment.note }}
+      備註：{{ info.assignment.note }}
     </div>
     <n-form label-placement="top">
       <n-form-item :label="dateLabel" :required="runningRound">

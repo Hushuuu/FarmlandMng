@@ -37,7 +37,7 @@ const overdue = computed(() => props.info.dueStatus === 'OVERDUE')
         {{ info.treeCount }} 棵
       </div>
       <div v-if="info.assignment.note" class="card-note muted">
-        指派備註：{{ info.assignment.note }}
+        備註：{{ info.assignment.note }}
       </div>
       <div class="card-meta muted">
         到期：{{ formatDate(info.dueDate) }}

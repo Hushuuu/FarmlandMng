@@ -105,7 +105,7 @@ function handleRescheduleSaved() {
               <div class="area-task-name">
                 <div class="area-task-title">{{ task.task.name }}</div>
                 <div v-if="task.assignment.note" class="area-task-note muted">
-                  指派備註：{{ task.assignment.note }}
+                  備註：{{ task.assignment.note }}
                 </div>
                 <div class="area-task-meta">
                   <span class="muted area-task-date">{{ formatDate(task.dueDate) }}</span>
@@ -146,7 +146,7 @@ function handleRescheduleSaved() {
                     <!-- <span class="muted">· {{ task.targetLabel }}</span> -->
                   </div>
                   <div v-if="task.assignment.note" class="area-task-note muted">
-                    指派備註：{{ task.assignment.note }}
+                    備註：{{ task.assignment.note }}
                   </div>
                   <div class="area-task-meta">
                     <span class="muted area-task-date">{{ formatDate(task.dueDate) }}</span>

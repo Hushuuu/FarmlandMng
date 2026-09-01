@@ -455,7 +455,7 @@ function enterArea() {
             <n-tag size="tiny" :bordered="false">{{ TARGET_TYPE_LABEL[p.assignment.target_type] }}</n-tag>
             <span class="rt-name">{{ p.task.name }}</span>
             <span class="muted">{{ p.treeCount }} 棵 · {{ formatDate(p.dueDate) }}</span>
-            <span v-if="p.assignment.note" class="rt-note muted">指派備註：{{ p.assignment.note }}</span>
+            <span v-if="p.assignment.note" class="rt-note muted">備註：{{ p.assignment.note }}</span>
             <due-status-tag :status="p.dueStatus" />
             <n-button size="tiny"  @click="openReschedule(p)">
               {{ p.runningBatchId ? '展延日期' : p.dueStatus === 'OVERDUE' ? '展延日期' : '調整日期' }}
