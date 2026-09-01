@@ -171,14 +171,23 @@ async function loadTargetRefs(assignments: TaskAssignment[]): Promise<TargetRefs
     else treeIds.add(a.target_id)
   }
 
-  const [orchardsRes, areasRes, treesRes] = await Promise.all([
-    orchardIds.size ? supabase.from('orchards').select('*').in('id', [...orchardIds]) : Promise.resolve({ data: [], error: null }),
-    areaIds.size ? supabase.from('areas').select('*').in('id', [...areaIds]) : Promise.resolve({ data: [], error: null }),
-    treeIds.size ? supabase.from('trees').select('*').in('id', [...treeIds]) : Promise.resolve({ data: [], error: null }),
-  ])
-  for (const r of [orchardsRes, areasRes, treesRes]) {
-    if (r.error) throw r.error
-  }
+  const treesRes = treeIds.size
+    ? await supabase.from('trees').select('*').in('id', [...treeIds])
+    : { data: [], error: null }
+  if (treesRes.error) throw treesRes.error
+
+  for (const tree of (treesRes.data ?? []) as Tree[]) areaIds.add(tree.area_id)
+  const areasRes = areaIds.size
+    ? await supabase.from('areas').select('*').in('id', [...areaIds])
+    : { data: [], error: null }
+  if (areasRes.error) throw areasRes.error
+
+  for (const area of (areasRes.data ?? []) as Area[]) orchardIds.add(area.orchard_id)
+  const orchardsRes = orchardIds.size
+    ? await supabase.from('orchards').select('*').in('id', [...orchardIds])
+    : { data: [], error: null }
+  if (orchardsRes.error) throw orchardsRes.error
+
   return {
     orchards: new Map(((orchardsRes.data ?? []) as Orchard[]).map((o) => [o.id, o])),
     areas: new Map(((areasRes.data ?? []) as Area[]).map((a) => [a.id, a])),
@@ -202,6 +211,17 @@ function targetLabelOf(refs: TargetRefs, a: TaskAssignment): { label: string; pa
   return { label: t?.name || t?.code || '?', path: `${o2?.name ?? ''} / ${ar2?.name ?? ''} / ${t?.code ?? '?'}` }
 }
 
+function targetOrchardOf(refs: TargetRefs, a: TaskAssignment): Orchard | null {
+  if (a.target_type === 'ORCHARD') return refs.orchards.get(a.target_id) ?? null
+  if (a.target_type === 'AREA') {
+    const area = refs.areas.get(a.target_id)
+    return area ? refs.orchards.get(area.orchard_id) ?? null : null
+  }
+  const tree = refs.trees.get(a.target_id)
+  const area = tree ? refs.areas.get(tree.area_id) : undefined
+  return area ? refs.orchards.get(area.orchard_id) ?? null : null
+}
+
 function resolveTargetIds(refs: TargetRefs, a: TaskAssignment): {
   orchardId: string | null
   areaId: string | null
@@ -215,14 +235,35 @@ function resolveTargetIds(refs: TargetRefs, a: TaskAssignment): {
   return { orchardId: ar?.orchard_id ?? null, areaId: t?.area_id ?? null }
 }
 
+export interface TargetDisplayInfo {
+  label: string
+  orchardId: string | null
+  orchardName: string
+}
+
+/** 取得指派顯示名稱與所屬果園，供任務設定頁分組使用。 */
+export async function getTargetDisplayMap(
+  assignments: TaskAssignment[],
+): Promise<Map<string, TargetDisplayInfo>> {
+  const refs = await loadTargetRefs(assignments)
+  const map = new Map<string, TargetDisplayInfo>()
+  for (const a of assignments) {
+    const orchard = targetOrchardOf(refs, a)
+    map.set(a.id, {
+      label: targetLabelOf(refs, a).label,
+      orchardId: orchard?.id ?? null,
+      orchardName: orchard?.name ?? '未指定果園',
+    })
+  }
+  return map
+}
+
 /** 批次解析指定對象名稱（任務設定頁顯示用） */
 export async function getTargetNameMap(
   assignments: TaskAssignment[],
 ): Promise<Map<string, string>> {
-  const refs = await loadTargetRefs(assignments)
-  const map = new Map<string, string>()
-  for (const a of assignments) map.set(a.id, targetLabelOf(refs, a).label)
-  return map
+  const displayMap = await getTargetDisplayMap(assignments)
+  return new Map([...displayMap].map(([id, info]) => [id, info.label]))
 }
 
 /** 單一果樹的任務歷史（§37 / §56） */

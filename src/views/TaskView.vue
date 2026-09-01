@@ -19,11 +19,12 @@ import {
 } from 'naive-ui'
 import {
   assignmentService,
-  getTargetNameMap,
+  getTargetDisplayMap,
   hardDeleteAssignment,
   hardDeleteTask,
   taskCrudService,
 } from '../services/taskService'
+import type { TargetDisplayInfo } from '../services/taskService'
 import { areaService, orchardService } from '../services/orchardService'
 import { treeService } from '../services/treeService'
 import type {
@@ -48,8 +49,14 @@ const management = useManagementStore()
 
 const loading = ref(true)
 const tasks = ref<(Task & { assignments: TaskAssignment[] })[]>([])
-const targetNames = ref(new Map<string, string>())
+const targetInfo = ref(new Map<string, TargetDisplayInfo>())
 const orchards = ref<Orchard[]>([])
+
+interface AssignmentGroup {
+  key: string
+  name: string
+  assignments: TaskAssignment[]
+}
 
 // ------------------------------------------------------------
 // 任務 CRUD
@@ -99,20 +106,6 @@ async function saveTask() {
   } finally {
     saving.value = false
   }
-}
-
-function confirmDeleteTask(t: Task) {
-  dialog.warning({
-    title: '停用任務',
-    content: `確定停用「${t.name}」？其排程將不再產生待執行項目（歷史紀錄保留）。`,
-    positiveText: '停用',
-    negativeText: '取消',
-    onPositiveClick: async () => {
-      await taskCrudService.softDelete(t.id)
-      message.success('已停用')
-      await reload()
-    },
-  })
 }
 
 function confirmHardDeleteTask(t: Task) {
@@ -296,20 +289,6 @@ async function saveAssign() {
   }
 }
 
-async function confirmDeleteAssign(a: TaskAssignment) {
-  dialog.warning({
-    title: '刪除排程',
-    content: '確定停用此排程？未來將不再產生此任務的執行項目。',
-    positiveText: '停用',
-    negativeText: '取消',
-    onPositiveClick: async () => {
-      await assignmentService.softDelete(a.id)
-      message.success('已停用')
-      await reload()
-    },
-  })
-}
-
 function confirmHardDeleteAssign(a: TaskAssignment, taskName: string) {
   dialog.error({
     title: '永久刪除排程',
@@ -333,12 +312,29 @@ async function toggleAssignActive(a: TaskAssignment, v: boolean) {
   a.active = v
 }
 
+function assignmentGroups(task: Task & { assignments: TaskAssignment[] }): AssignmentGroup[] {
+  const groups = new Map<string, AssignmentGroup>()
+  for (const assignment of task.assignments) {
+    const info = targetInfo.value.get(assignment.id)
+    const name = info?.orchardName ?? '未指定果園'
+    const key = info?.orchardId ?? 'UNKNOWN'
+    const group = groups.get(key)
+    if (group) group.assignments.push(assignment)
+    else groups.set(key, { key, name, assignments: [assignment] })
+  }
+  return [...groups.values()].sort((left, right) => left.name.localeCompare(right.name))
+}
+
 // ------------------------------------------------------------
 async function reload() {
   tasks.value = []
   const list = await taskCrudService.list(true)
-  tasks.value = await Promise.all(list.map(async (t) => ({ ...t, assignments: await assignmentService.listByTask(t.id) })))
-  targetNames.value = await getTargetNameMap(tasks.value.flatMap((t) => t.assignments))
+  const loadedTasks = await Promise.all(
+    list.map(async (t) => ({ ...t, assignments: await assignmentService.listByTask(t.id) })),
+  )
+  const displayMap = await getTargetDisplayMap(loadedTasks.flatMap((t) => t.assignments))
+  targetInfo.value = displayMap
+  tasks.value = loadedTasks
 }
 
 onMounted(async () => {
@@ -375,32 +371,37 @@ onMounted(async () => {
               <div v-if="t.description" class="muted">{{ t.description }}</div>
 
               <div class="assign-list">
-                <div v-for="a in t.assignments" :key="a.id" class="assign-row">
-                  <div class="assign-info">
-                    <n-tag size="tiny" :type="a.active ? 'info' : 'default'" round>
-                      {{ TARGET_TYPE_LABEL[a.target_type] }}
-                    </n-tag>
-                    <b>{{ targetNames.get(a.id) ?? '…' }}</b>
-                    <span class="muted">　{{ recurrenceText(a.recurrence_value, a.recurrence_unit) }}　起始 {{ formatDate(a.start_date) }}</span>
-                    <span v-if="a.next_start_date && a.recurrence_value && a.recurrence_unit" class="muted">
-                     　下一輪 {{ formatDate(a.next_start_date) }}
-                    </span>
-                    <span v-if="a.note" class="assign-note muted">　備註：{{ a.note }}</span>
-                    <n-tag v-if="!a.active" size="tiny" type="error" round>已停用</n-tag>
+                <div v-for="group in assignmentGroups(t)" :key="`${t.id}:${group.key}`" class="assign-group">
+                  <div class="assign-group-head">
+                    <span class="assign-group-name">{{ group.name }}</span>
+                    <span class="muted">{{ group.assignments.length }} 筆指派</span>
                   </div>
-                  <div class="row-actions">
-                    <n-switch size="small" :value="a.active" @update:value="(v: boolean) => toggleAssignActive(a, v)" />
-                    <n-button size="tiny" quaternary @click="openAssignEdit(a)">編輯</n-button>
-                    <n-button v-if="a.active" size="tiny" quaternary type="error" @click="confirmDeleteAssign(a)">停用</n-button>
-                    <n-button
-                      v-if="management.unlocked"
-                      size="tiny"
-                      quaternary
-                      type="error"
-                      @click="confirmHardDeleteAssign(a, t.name)"
-                    >
-                      永久刪除
-                    </n-button>
+                  <div v-for="a in group.assignments" :key="a.id" class="assign-row">
+                    <div class="assign-info">
+                      <n-tag size="tiny" :type="a.active ? 'info' : 'default'" round>
+                        {{ TARGET_TYPE_LABEL[a.target_type] }}
+                      </n-tag>
+                      <b>{{ targetInfo.get(a.id)?.label ?? '…' }}</b>
+                      <span class="muted">　{{ recurrenceText(a.recurrence_value, a.recurrence_unit) }}　起始 {{ formatDate(a.start_date) }}</span>
+                      <span v-if="a.next_start_date && a.recurrence_value && a.recurrence_unit" class="muted">
+                       　下一輪 {{ formatDate(a.next_start_date) }}
+                      </span>
+                      <span v-if="a.note" class="assign-note muted">　備註：{{ a.note }}</span>
+                      <n-tag v-if="!a.active" size="tiny" type="error" round>已停用</n-tag>
+                    </div>
+                    <div class="row-actions">
+                      <n-switch size="small" :value="a.active" @update:value="(v: boolean) => toggleAssignActive(a, v)" />
+                      <n-button size="tiny" quaternary @click="openAssignEdit(a)">編輯</n-button>
+                      <n-button
+                        v-if="management.unlocked"
+                        size="tiny"
+                        quaternary
+                        type="error"
+                        @click="confirmHardDeleteAssign(a, t.name)"
+                      >
+                        永久刪除
+                      </n-button>
+                    </div>
                   </div>
                 </div>
                 <div v-if="!t.assignments.length" class="muted assign-empty">
@@ -411,7 +412,6 @@ onMounted(async () => {
             <div class="row-actions top">
               <n-switch size="small" :value="t.active" @update:value="(v: boolean) => toggleTaskActive(t, v)" />
               <n-button size="tiny" quaternary @click="openTaskEdit(t)">編輯</n-button>
-              <n-button v-if="t.active" size="tiny" quaternary type="error" @click="confirmDeleteTask(t)">停用</n-button>
               <n-button
                 v-if="management.unlocked"
                 size="tiny"
@@ -483,16 +483,13 @@ onMounted(async () => {
             filterable
           />
         </n-form-item>
-        <n-form-item v-if="assignForm.target_type === 'AREA'" :show-feedback="false">
-          <div class="muted">指定區域＝執行時解析「當下」區域內所有有效果樹，之後新增的樹也會自動納入</div>
-        </n-form-item>
 
         <n-form-item label="開始日期" required>
           <n-date-picker v-model:value="assignForm.start_date" type="date" style="width: 100%" />
         </n-form-item>
         <n-form-item v-if="assignForm.has_recurrence" label="下一輪預計開始日">
           <n-date-picker v-model:value="assignForm.next_start_date" type="date" clearable style="width: 100%" />
-          <div class="muted">完成本輪後會自動依週期帶入，也可以在待執行任務中調整。</div>
+          <!-- <div class="muted">完成本輪後會自動依週期帶入。</div> -->
         </n-form-item>
 
         <n-form-item label="重複週期">
@@ -575,6 +572,26 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.assign-group + .assign-group {
+  margin-top: 4px;
+  border-top: 1px solid #e5e7eb;
+  padding-top: 8px;
+}
+
+.assign-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 2px 4px;
+  font-size: 13px;
+}
+
+.assign-group-name {
+  font-weight: 700;
+  color: #374151;
 }
 
 .assign-row {

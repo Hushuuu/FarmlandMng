@@ -98,12 +98,12 @@ async function persistPosition(areaId: string) {
 // ------------------------------------------------------------
 // 新增 / 編輯區域
 // ------------------------------------------------------------
-const form = ref({ code: '', name: '', description: '', width: 300, height: 220 })
+const form = ref({ code: '', name: '', description: '', width: 550, height: 110 })
 
 function openCreate() {
   const c = canvasRef.value?.centerVirtual() ?? { x: 300, y: 300 }
-  const w = 300
-  const h = 220
+  const w = 550
+  const h = 110
   form.value = {
     code: '',
     name: '',

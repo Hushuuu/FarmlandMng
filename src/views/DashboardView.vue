@@ -17,11 +17,11 @@ import {
   useMessage,
 } from 'naive-ui'
 import { statsService } from '../services/statsService'
-import type { AreaStats, OrchardStats } from '../services/statsService'
+import type { OrchardStats } from '../services/statsService'
 import { cancelSettlement, getPendingTasks, listBatchSummaries, updateBatchDetails } from '../services/taskService'
 import type { BatchSummary, PendingTaskInfo } from '../types/database'
 import TaskCard from '../components/task/TaskCard.vue'
-import OrchardDetailDrawer from '../components/orchard/OrchardDetailDrawer.vue'
+import TaskRescheduleModal from '../components/task/TaskRescheduleModal.vue'
 import { useTaskStore } from '../stores/task'
 import { formatDateWithWeekday, todayStr, toDateStr } from '../utils/date'
 
@@ -33,17 +33,22 @@ const message = useMessage()
 const loading = ref(true)
 const counts = ref({ orchards: 0, areas: 0, trees: 0 })
 const orchardStats = ref<OrchardStats[]>([])
-const areaStats = ref<AreaStats[]>([])
 const pending = ref<PendingTaskInfo[]>([])
 const history = ref<BatchSummary[]>([])
-const showOrchardDetail = ref(false)
-const selectedOrchard = ref<OrchardStats | null>(null)
 const orchardFilter = ref('ALL')
 
 const orchardOptions = computed(() => [
   { label: '全部果園', value: 'ALL' },
   ...orchardStats.value.map((stats) => ({ label: stats.orchard.name, value: stats.orchard.id })),
 ])
+
+const dashboardCounts = computed(() => {
+  if (orchardFilter.value === 'ALL') return counts.value
+  const selected = orchardStats.value.find((stats) => stats.orchard.id === orchardFilter.value)
+  return selected
+    ? { orchards: 1, areas: selected.areaCount, trees: selected.treeCount }
+    : { orchards: 0, areas: 0, trees: 0 }
+})
 
 const filteredPending = computed(() =>
   orchardFilter.value === 'ALL'
@@ -79,19 +84,8 @@ const todaySettledTasks = computed(() =>
   ),
 )
 
-function openOrchardDetail(stats: OrchardStats) {
-  selectedOrchard.value = stats
-  showOrchardDetail.value = true
-}
-
 function openOrchardMap(stats: OrchardStats) {
   router.push(`/orchards/${stats.orchard.id}/map`)
-}
-
-function openSelectedOrchardMap() {
-  if (!selectedOrchard.value) return
-  showOrchardDetail.value = false
-  router.push(`/orchards/${selectedOrchard.value.orchard.id}/map`)
 }
 
 async function refreshDetail() {
@@ -102,6 +96,14 @@ async function refreshDetail() {
   } catch (e) {
     message.error(e instanceof Error ? e.message : '載入任務狀況失敗')
   }
+}
+
+const showReschedule = ref(false)
+const rescheduleInfo = ref<PendingTaskInfo | null>(null)
+
+function openReschedule(info: PendingTaskInfo) {
+  rescheduleInfo.value = info
+  showReschedule.value = true
 }
 
 async function execute(p: PendingTaskInfo) {
@@ -182,16 +184,14 @@ watch(
 
 onMounted(async () => {
   try {
-    const [c, os, ars, pt, hs] = await Promise.all([
+    const [c, os, pt, hs] = await Promise.all([
       statsService.counts(),
       statsService.orchardStats(),
-      statsService.areaStats(),
       getPendingTasks(),
       listBatchSummaries(),
     ])
     counts.value = c
     orchardStats.value = os
-    areaStats.value = ars
     pending.value = pt
     history.value = hs
   } catch (e) {
@@ -220,7 +220,6 @@ onMounted(async () => {
           <div v-for="stats in linkedOrchards" :key="stats.orchard.id" class="orchard-link-row">
             <span class="orchard-link-name">{{ stats.orchard.name }}</span>
             <div class="orchard-link-actions">
-              <n-button size="tiny" secondary @click="openOrchardDetail(stats)">查看任務</n-button>
               <n-button size="tiny" secondary type="primary" @click="openOrchardMap(stats)">地圖</n-button>
             </div>
           </div>
@@ -229,9 +228,9 @@ onMounted(async () => {
 
       <!-- 系統總覽（§13.1） -->
       <n-grid cols="2 s:3 m:6" x-gap="8" y-gap="8" responsive="screen">
-        <n-gi><n-card size="small"><div class="stat-label">果園</div><div class="stat-value">{{ counts.orchards }}</div></n-card></n-gi>
-        <n-gi><n-card size="small"><div class="stat-label">區域</div><div class="stat-value">{{ counts.areas }}</div></n-card></n-gi>
-        <n-gi><n-card size="small"><div class="stat-label">果樹</div><div class="stat-value">{{ counts.trees }}</div></n-card></n-gi>
+        <n-gi><n-card size="small"><div class="stat-label">果園</div><div class="stat-value">{{ dashboardCounts.orchards }}</div></n-card></n-gi>
+        <n-gi><n-card size="small"><div class="stat-label">區域</div><div class="stat-value">{{ dashboardCounts.areas }}</div></n-card></n-gi>
+        <n-gi><n-card size="small"><div class="stat-label">果樹</div><div class="stat-value">{{ dashboardCounts.trees }}</div></n-card></n-gi>
         <n-gi><n-card size="small"><div class="stat-label warn">今日任務</div><div class="stat-value warn">{{ todayTasks.length }}</div></n-card></n-gi>
         <n-gi><n-card size="small"><div class="stat-label info">即將到來</div><div class="stat-value info">{{ upcomingTasks.length }}</div></n-card></n-gi>
         <n-gi><n-card size="small"><div class="stat-label err">逾期</div><div class="stat-value err">{{ overdueTasks.length }}</div></n-card></n-gi>
@@ -248,7 +247,14 @@ onMounted(async () => {
         <template v-if="section.list.length">
           <h2 class="section-title">{{ section.title }}</h2>
           <div class="task-list">
-            <task-card v-for="p in section.list.slice(0, 5)" :key="p.assignment.id" :info="p" @execute="execute(p)" />
+            <task-card
+              v-for="p in section.list.slice(0, 5)"
+              :key="p.assignment.id"
+              :info="p"
+              :allow-reschedule="true"
+              @execute="execute(p)"
+              @reschedule="openReschedule(p)"
+            />
             <div v-if="section.list.length > 5" class="more-link clickable muted" @click="router.push('/tasks/pending')">
               還有 {{ section.list.length - 5 }} 項，前往待執行任務 →
             </div>
@@ -296,17 +302,10 @@ onMounted(async () => {
         <div v-else class="muted settled-empty">目前篩選條件沒有今日結算的任務</div>
       </section>
 
-      <orchard-detail-drawer
-        v-if="selectedOrchard"
-        v-model:show="showOrchardDetail"
-        :orchard-id="selectedOrchard.orchard.id"
-        :orchard-name="selectedOrchard.orchard.name"
-        :areas="areaStats"
-        :pending="pending"
-        :history="history"
-        @map="openSelectedOrchardMap"
-        @execute="execute"
-        @reschedule-saved="refreshDetail"
+      <task-reschedule-modal
+        v-model:show="showReschedule"
+        :info="rescheduleInfo"
+        @saved="refreshDetail"
       />
 
       <n-modal v-model:show="showBatchEditor" preset="card" title="編輯執行資訊" style="max-width: 420px">

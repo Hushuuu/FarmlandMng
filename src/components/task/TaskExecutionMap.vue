@@ -47,10 +47,10 @@ const visibleTreeItems = computed(() =>
 const total = computed(() => mapItems.value.length)
 const processedCount = computed(() => mapItems.value.filter((item) => isProcessed(item.status)).length)
 const mapWidth = computed(() =>
-  mapLevel.value === 'AREAS' ? Number(orchard.value?.map_width ?? 2000) : Number(activeArea.value?.width ?? 300),
+  mapLevel.value === 'AREAS' ? Number(orchard.value?.map_width ?? 2000) : Number(activeArea.value?.width ?? 550),
 )
 const mapHeight = computed(() =>
-  mapLevel.value === 'AREAS' ? Number(orchard.value?.map_height ?? 1200) : Number(activeArea.value?.height ?? 220),
+  mapLevel.value === 'AREAS' ? Number(orchard.value?.map_height ?? 1200) : Number(activeArea.value?.height ?? 110),
 )
 const mapTitle = computed(() =>
   mapLevel.value === 'AREAS' ? '區域總覽' : activeArea.value?.name ?? '區域果樹',
