@@ -331,7 +331,10 @@ export async function getTaskScheduleAnalytics(
   })
   const activeAssignmentIds = activeAssignments.map((assignment) => assignment.id)
   const completedAssignmentIds = activeAssignments
-    .filter((assignment) => !!assignment.recurrence_value && !!assignment.recurrence_unit && !assignment.next_start_date)
+    .filter((assignment) => {
+      const hasRecurrence = !!assignment.recurrence_value && !!assignment.recurrence_unit
+      return !hasRecurrence || !assignment.next_start_date
+    })
     .map((assignment) => assignment.id)
 
   const [treesRes, completedRes, runningRes] = await Promise.all([

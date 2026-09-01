@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   NButton,
@@ -157,6 +157,13 @@ async function execute(p: PendingTaskInfo) {
     message.error(e instanceof Error ? e.message : '無法開始執行')
   }
 }
+
+watch(
+  () => taskStore.executionSheetOpen,
+  (isOpen, wasOpen) => {
+    if (wasOpen && !isOpen) void loadDetail()
+  },
+)
 
 onMounted(() => store.loadOrchards(true))
 </script>

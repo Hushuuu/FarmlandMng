@@ -1,3 +1,4 @@
+<!-- 地圖控制按鈕 -->
 <script setup lang="ts">
 defineProps<{ editMode?: boolean }>()
 const emit = defineEmits<{ 'zoom-in': []; 'zoom-out': []; fit: [] }>()

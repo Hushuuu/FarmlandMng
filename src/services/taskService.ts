@@ -883,7 +883,7 @@ export async function getBatchTargetName(batchId: string): Promise<string> {
   return targetName
 }
 
-/** 更新進行中批次的本次執行備註與成本。 */
+/** 更新執行批次的本次執行備註與成本。 */
 export async function updateBatchDetails(
   batchId: string,
   note: string | null,
@@ -901,9 +901,9 @@ export async function updateBatchDetails(
       cost: normalizedCost,
     })
     .eq('id', batchId)
-    .eq('status', 'IN_PROGRESS')
+    .in('status', ['IN_PROGRESS', 'COMPLETED'])
     .select('id')
     .maybeSingle()
   if (error) throw error
-  if (!updated) throw new Error('只有執行中的批次可以更新執行資訊')
+  if (!updated) throw new Error('只有執行中或已完成的批次可以更新執行資訊')
 }
