@@ -96,12 +96,33 @@ function actualColor(status: BatchStatus | null): string {
   return '#18a058'
 }
 
-function eventStroke(event: ScheduleEvent): string {
+function isOverdueForecast(event: ScheduleEvent): boolean {
+  return event.source === 'FORECAST' && event.date < props.today
+}
+
+function isOverdueInProgress(event: ScheduleEvent): boolean {
+  return event.source === 'ACTUAL' && event.batchStatus === 'IN_PROGRESS' && event.date < props.today
+}
+
+function eventColor(event: ScheduleEvent): string {
+  if (isOverdueForecast(event)) return '#d03050'
+  if (isOverdueInProgress(event)) return '#f0a020'
   return event.source === 'ACTUAL' ? actualColor(event.batchStatus) : '#7c5ce5'
 }
 
+function trianglePoints(x: number, y: number, size = 6): string {
+  return `${x},${y - size} ${x - size},${y + size} ${x + size},${y + size}`
+}
+
 function eventTitle(event: ScheduleEvent): string {
-  const source = '' //event.source === 'ACTUAL' ? '歷史實際' : '未來預測'
+  const source =
+    isOverdueForecast(event)
+      ? '逾期未執行'
+      : isOverdueInProgress(event)
+        ? '逾期執行中'
+        : event.source === 'ACTUAL'
+          ? '歷史實際'
+          : '未來預測'
   const date = formatDate(event.date)
   const status =
     event.batchStatus === 'COMPLETED'
@@ -110,18 +131,11 @@ function eventTitle(event: ScheduleEvent): string {
         ? '執行中'
         : ''
   const recurrence = recurrenceText(event.recurrenceValue, event.recurrenceUnit)
-  // const forecast =
-  //   event.forecastKind === 'IN_PROGRESS_PROJECTION'
-  //     ? '依目前執行批次暫估'
-  //     : event.forecastKind === 'NEXT_START_DATE'
-  //       ? '依下一輪日期'
-  //       : ''
-  const forecast = ''
   const completed =
     event.completedDate && event.completedDate !== event.date
       ? `結算 ${formatDate(event.completedDate)}`
       : ''
-  return [source, event.taskName, date, event.targetLabel, status, recurrence, completed, forecast]
+  return [source, event.taskName, date, event.targetLabel, status, recurrence, completed]
     .filter(Boolean)
     .join(' · ')
 }
@@ -209,11 +223,16 @@ function eventTitle(event: ScheduleEvent): string {
               >
                 <title>{{ eventTitle(event) }}</title>
                 <circle
-                  v-if="event.source === 'ACTUAL'"
+                  v-if="!isOverdueForecast(event) && !isOverdueInProgress(event) && event.source === 'ACTUAL'"
                   :cx="xFor(event.date)"
                   cy="0"
                   r="5"
-                  :fill="eventStroke(event)"
+                  :fill="eventColor(event)"
+                />
+                <polygon
+                  v-else-if="isOverdueForecast(event) || isOverdueInProgress(event)"
+                  :points="trianglePoints(xFor(event.date), 0)"
+                  :fill="eventColor(event)"
                 />
                 <circle
                   v-else
@@ -221,7 +240,7 @@ function eventTitle(event: ScheduleEvent): string {
                   cy="0"
                   r="6"
                   fill="#fff"
-                  stroke="#7c5ce5"
+                  :stroke="eventColor(event)"
                   stroke-width="1.8"
                   stroke-dasharray="3 2"
                 />

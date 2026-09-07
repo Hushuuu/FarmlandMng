@@ -266,6 +266,8 @@ onMounted(load)
         <div class="legend">
           <span class="legend-item"><i class="legend-mark actual" />歷史／實際</span>
           <span class="legend-item"><i class="legend-mark forecast" />未來預測</span>
+          <span class="legend-item"><i class="legend-mark overdue" />逾期未執行</span>
+          <span class="legend-item"><i class="legend-mark overdue-running" />逾期執行中</span>
           <span class="legend-item"><i class="legend-mark today" />今天</span>
         </div>
 
@@ -285,7 +287,7 @@ onMounted(load)
         />
 
         <div class="forecast-note">
-          未來事件依啟用中的任務週期、最近結算日與下一輪日期即時計算；目前執行中的批次，其後續週期為暫估。
+          未來事件依啟用中的任務週期、最近結算日與下一輪日期即時計算；今天以前未執行的週期顯示紅色三角形，仍在執行中的逾期批次顯示黃色三角形。
         </div>
       </section>
     </n-spin>
@@ -363,6 +365,22 @@ onMounted(load)
 .legend-mark.forecast {
   border: 1.5px dashed #7c5ce5;
   background: rgba(124, 92, 229, 0.16);
+}
+
+.legend-mark.overdue {
+  width: 12px;
+  height: 10px;
+  border-radius: 0;
+  background: #d03050;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+
+.legend-mark.overdue-running {
+  width: 12px;
+  height: 10px;
+  border-radius: 0;
+  background: #f0a020;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
 }
 
 .legend-mark.today {

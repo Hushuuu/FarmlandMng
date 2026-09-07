@@ -265,10 +265,27 @@ function addForecastEvents(
   if (!anchor) return
 
   if (!hasRecurrence) {
-    if (anchor >= range.today && anchor <= range.to) {
+    if (anchor >= range.from && anchor <= range.to) {
       events.push(forecastEvent(info, anchor, forecastKind))
     }
     return
+  }
+
+  if (!runningBatch) {
+    let cursor = firstOccurrenceOnOrAfter(
+      anchor,
+      range.from,
+      assignment.recurrence_value!,
+      assignment.recurrence_unit!,
+    )
+    let count = 0
+    while (cursor < range.today && cursor <= range.to && count < 1000) {
+      events.push(forecastEvent(info, cursor, forecastKind))
+      const next = addInterval(cursor, assignment.recurrence_value!, assignment.recurrence_unit!)
+      if (next <= cursor) break
+      cursor = next
+      count++
+    }
   }
 
   let cursor = firstOccurrenceOnOrAfter(
